@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uzayOS — Uzay Temelli Ders & Oyun İşletim Sistemi</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <!-- Açılış (boot) ekranı -->
+  <div id="acilis">
+    <div class="acilis-logo">uzay<span>OS</span></div>
+    <div class="acilis-alt">UZAYÇEKİRDEK 1.0 · DERS + OYUN HİBRİT SÜRÜM</div>
+    <div class="acilis-satirlar"></div>
+    <div class="acilis-ilerleme"><i></i></div>
+  </div>
+
+  <!-- Masaüstü -->
+  <div id="masaustu">
+    <canvas id="starfield"></canvas>
+    <div class="gezegen"><span class="ay"></span></div>
+
+    <div id="widget">
+      <div class="w-satir w-sistem"><span class="w-nokta"></span> uzayOS 1.0 · Yörünge İstasyonu</div>
+      <div class="w-satir w-tarih">—</div>
+      <div class="w-satir w-yz">Yıldız Zamanı —</div>
+      <div class="w-gorev">
+        <span>Görev İlerlemesi</span>
+        <div class="w-bar"><i></i></div>
+        <b class="w-sayi">0/0</b>
+      </div>
+    </div>
+
+    <div id="masaustu-ikonlar"></div>
+    <div id="pencereler"></div>
+    <div id="bildirimler"></div>
+    <div class="acilis-ipucu">Uygulamaları açmak için çift tıkla · Görev Merkezi ↓</div>
+  </div>
+
+  <!-- Görev Merkezi (başlat menüsü) -->
+  <div id="merkez-menu"></div>
+
+  <!-- Görev Çubuğu -->
+  <div id="gorev-cubugu">
+    <button id="baslat-btn" title="Görev Merkezi">🚀 <span>Görev Merkezi</span></button>
+    <div id="acik-uygulamalar"></div>
+    <div id="tepsi">
+      <span id="yakit" title="Tamamlanan görevlerden kazanılan roket yakıtı">⛽ Yakıt <b>0</b></span>
+      <div id="saat"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/kernel.js"></script>
+  <script src="assets/js/apps-ders.js"></script>
+  <script src="assets/js/apps-oyun.js"></script>
+  <script src="assets/js/apps-nebulanet.js"></script>
+  <script src="assets/js/apps-hakkinda.js"></script>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

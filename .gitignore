@@ -1,0 +1,32 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# uzayOS özel
+uzay-indirmeler/
+uzayos-indirmeler/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# VSCode
+vscode/
+.idea/
+
+# Geçici
+*.tmp
+*.bak
+*.old
+*.log
+
+# Otomatik başlatma yardımcıları (lokal)
+gizli-baslat.vbs
+uzayOS.vbs
+calistir.bat
+uzayOS-Calistir.bat
+uzayos-baslat.bat
