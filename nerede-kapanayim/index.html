@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060a11">
+  <meta name="description" content="AlanKilit: seçtiğin konum alanına girince ekranını kilitleyen, çıkınca açan konum uygulaması.">
+  <title>AlanKilit</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <button class="icon-btn back-btn" id="backBtn" type="button" aria-label="Geri" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <a class="brand" href="#/" aria-label="Ana sayfa">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6" class="fill"/></svg>
+      </span>
+      <span class="brand-text">AlanKilit</span>
+    </a>
+    <button class="gps-pill" id="gpsPill" type="button" title="Konum durumu">
+      <span class="gps-dot" aria-hidden="true"></span>
+      <span id="gpsText">konumu aç</span>
+    </button>
+  </header>
+
+  <main class="shell">
+
+    <!-- ================= ANA SAYFA ================= -->
+    <section class="view" id="view-home">
+      <div class="hero">
+        <div class="hero-top">
+          <p class="eyebrow">KONUM KİLİDİ</p>
+          <button class="role-chip is-empty" id="roleChip" type="button">Yaş seç</button>
+        </div>
+        <h1>Alan<br><span class="accent">Kilit</span></h1>
+        <p class="lede">Seçtiğin alana girince ekranın kilitlensin, çıkınca kendiliğinden açılsın.</p>
+      </div>
+
+      <form class="add-card" id="addForm" novalidate>
+        <label class="field-label" for="placeName">Konu veya yer</label>
+        <div class="add-row">
+          <input class="text-input" id="placeName" type="text" placeholder="cami, okul, kütüphane…"
+                 maxlength="40" autocomplete="off" enterkeyhint="done">
+          <button class="primary btn-add" type="submit">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><circle cx="12" cy="15.5" r="1.4" class="fill"/></svg>
+            Kilidi kur
+          </button>
+        </div>
+        <p class="hint"><strong>Şu anki konumun</strong> bu yerin merkezi olur. 18 yaş altında alandan çıkınca açılır; 18 yaş ve üzerinde kilit ve mola süreleri kullanılır.</p>
+      </form>
+
+      <div class="install-banner" id="installBanner" hidden>
+        <div>
+          <strong>Uygulamayı cihaza kur</strong>
+          <span>Tam ekran açılır, çevrimdışı çalışır.</span>
+        </div>
+        <div class="install-actions">
+          <button class="ghost small" id="installDismiss" type="button">Sonra</button>
+          <button class="primary small" id="installBtn" type="button">Kur</button>
+        </div>
+      </div>
+
+      <div class="overview" id="overview" hidden>
+        <div class="overview-item">
+          <strong id="sumCount">0</strong>
+          <span>toplam kapanma</span>
+        </div>
+        <div class="overview-item">
+          <strong id="sumTime">0 dk</strong>
+          <span>toplam kilit</span>
+        </div>
+        <div class="overview-item">
+          <strong id="sumToday">0</strong>
+          <span>bugün kapandı</span>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <h2>Kayıtlı yerler</h2>
+        <span class="count-chip" id="placeCount">0</span>
+      </div>
+
+      <div class="place-list" id="placeList"></div>
+
+      <div class="empty" id="emptyState">
+        <div class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18"/></svg>
+        </div>
+        <p><strong>Henüz kayıtlı yer yok.</strong><br>Yukarıdan bir yer ekle; içine girince kilit devreye girsin.</p>
+      </div>
+    </section>
+
+    <!-- ================= YER DETAYI ================= -->
+    <section class="view" id="view-place" hidden>
+      <button class="link-back" id="backLink" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        Tüm yerler
+      </button>
+
+      <div class="place-head">
+        <div class="radar" id="radar" aria-hidden="true">
+          <span class="radar-ring r3"></span>
+          <span class="radar-ring r2"></span>
+          <span class="radar-ring r1"></span>
+          <span class="radar-sweep"></span>
+          <span class="radar-pin">
+            <svg viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+          </span>
+          <span class="radar-me" id="radarMe" hidden></span>
+        </div>
+        <div class="place-title">
+          <p class="eyebrow">KİLİT ALANI</p>
+          <h1 id="placeTitle">—</h1>
+          <p id="placeSub">Konum bekleniyor…</p>
+        </div>
+      </div>
+
+      <div class="status-banner" id="statusBanner" data-state="wait">
+        <span class="status-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </span>
+        <div class="status-copy">
+          <strong id="statusTitle">Konum bekleniyor</strong>
+          <span id="statusText">Konum izni verdiğinde alanı izlemeye başlarım.</span>
+        </div>
+        <span class="status-dist" id="statusDist"></span>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <strong id="statCount">0</strong>
+          <span>kez kapandı</span>
+        </div>
+        <div class="stat">
+          <strong id="statTime">0 dk</strong>
+          <span>toplam kilit</span>
+        </div>
+        <div class="stat">
+          <strong id="statLast">—</strong>
+          <span>son kapanma</span>
+        </div>
+      </div>
+
+      <div class="history-card">
+        <div class="history-head">
+          <h2>Son kapanmalar</h2>
+          <span id="historyToday">bugün 0</span>
+        </div>
+        <ul class="history-list" id="historyList" hidden></ul>
+        <p class="history-empty" id="historyEmpty">Henüz kayıt yok. İlk kilit açıldığında burada görünecek.</p>
+      </div>
+
+      <div class="detail-actions">
+        <button class="ghost" id="setHereBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+          Konumu buraya ayarla
+        </button>
+        <button class="ghost" id="placeSettingsBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          Bu yerin ayarları
+        </button>
+      </div>
+
+      <p class="fine">Kilit yalnızca bu uygulama açıkken ve konum izni verildiğinde çalışır. Pil tasarrufu modu arka plan takibini durdurabilir.</p>
+    </section>
+
+  </main>
+
+  <div class="install-banner update-banner" id="updateBanner" role="status" aria-live="polite" hidden>
+    <div>
+      <strong>Güncelleme geldi</strong>
+      <span>Yeni sürüm indirildi. Güncellemek için dokun.</span>
+    </div>
+    <div class="install-actions">
+      <button class="ghost small" id="updateDismiss" type="button">Sonra</button>
+      <button class="primary small" id="updateBtn" type="button">Güncelle</button>
+    </div>
+  </div>
+
+  <!-- Ayarlar düğmesi -->
+  <button class="fab" id="settingsBtn" type="button" aria-label="Ayarlar">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+
+  <!-- ================= AYARLAR PANELİ ================= -->
+  <aside class="sheet" id="settingsSheet" hidden aria-label="Ayarlar">
+    <div class="sheet-backdrop" data-close-sheet></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <header class="sheet-head">
+        <h2 id="sheetTitle">Ayarlar</h2>
+        <button class="icon-btn" type="button" data-close-sheet aria-label="Kapat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+
+      <div class="sheet-body">
+
+        <section class="sheet-block">
+          <h3>Yaş ve kilit biçimi</h3>
+          <label class="field">
+            <span>Doğum tarihi (gün / ay / yıl)</span>
+            <input class="text-input" id="settingsBirthDate" type="date" min="1900-01-01" autocomplete="bday">
+          </label>
+          <p class="fine" id="ageSummary">Doğum tarihi girilmedi.</p>
+          <button class="ghost wide" id="settingsBirthSave" type="button">Doğum tarihini kaydet</button>
+          <p class="fine">18 yaş altı: alana girince kilitlenir, alandan çıkınca açılır. 18 yaş ve üzeri: seçilen süre kadar kilitli kalır, mola verir, süre bitince tekrar kilitlenir.</p>
+        </section>
+
+        <section class="sheet-block">
+          <h3>Profil</h3>
+          <div class="two-col">
+            <label class="field">
+              <span>Adın</span>
+              <input class="text-input" id="profileName" type="text" maxlength="40" autocomplete="name" placeholder="ör. Ali">
+            </label>
+            <label class="field">
+              <span>Telefon</span>
+              <input class="text-input" id="profilePhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx">
+            </label>
+          </div>
+          <button class="ghost wide" id="profileSave" type="button">Profili kaydet</button>
+          <p class="fine">Adın ve numaran grup davetlerinde, üye listesinde ve yönetici bildirimlerinde kullanılır.</p>
+        </section>
+
+        <section class="sheet-block" id="groupBlock">
+          <h3>Grup</h3>
+          <div id="groupSummary"></div>
+        </section>
+
+        <section class="sheet-block">
+          <h3>Yeni yer ekle</h3>
+          <label class="field">
+            <span>Yer adı</span>
+            <input class="text-input" id="newPlaceName" type="text" maxlength="40" placeholder="ör. cami" autocomplete="off">
+          </label>
+          <div class="two-col" id="newScheduleFields">
+            <label class="field">
+              <span>Kilit süresi (dk)</span>
+              <input class="text-input" id="newLockMinutes" type="number" min="0" max="240" step="1" inputmode="numeric" value="50">
+            </label>
+            <label class="field">
+              <span>Mola (dk)</span>
+              <input class="text-input" id="newBreakMinutes" type="number" min="0" max="60" step="1" inputmode="numeric" value="10">
+            </label>
+          </div>
+          <label class="field">
+            <span>Algılama yarıçapı (metre)</span>
+            <input class="text-input" id="newRadius" type="number" min="50" max="1000" step="25" inputmode="numeric" value="100">
+          </label>
+          <div class="row-actions">
+            <button class="primary wide" id="newSave" type="button">Şu anki konuma ekle</button>
+          </div>
+          <p class="fine" id="newPlaceHint">Yer, kaydettiğinde alınan konuma göre belirlenir. Kilit süresi 0 ise alandan çıkınca açılır.</p>
+        </section>
+
+        <section class="sheet-block" id="editPlaceBlock" hidden>
+          <h3>Bu yer</h3>
+          <label class="field">
+            <span>Yer adı</span>
+            <input class="text-input" id="editName" type="text" maxlength="40">
+          </label>
+          <div class="two-col" id="editScheduleFields">
+            <label class="field">
+              <span>Kilit süresi (dk)</span>
+              <input class="text-input" id="editLockMinutes" type="number" min="0" max="240" step="1" inputmode="numeric">
+            </label>
+            <label class="field">
+              <span>Mola (dk)</span>
+              <input class="text-input" id="editBreakMinutes" type="number" min="0" max="60" step="1" inputmode="numeric">
+            </label>
+          </div>
+          <label class="field">
+            <span>Algılama yarıçapı (metre)</span>
+            <input class="text-input" id="editRadius" type="number" min="50" max="1000" step="25" inputmode="numeric">
+          </label>
+          <p class="fine" id="editScheduleHint" hidden>18 yaş altı: süre yerine alandan çıkınca açılır.</p>
+          <div class="row-actions">
+            <button class="ghost" id="editUseCurrent" type="button">Konumu buraya ayarla</button>
+            <button class="primary" id="editSave" type="button">Kaydet</button>
+          </div>
+          <div class="row-actions">
+            <button class="ghost" id="editZero" type="button">Sayacı sıfırla</button>
+            <button class="danger ghost" id="editDelete" type="button">Yeri sil</button>
+          </div>
+        </section>
+
+        <section class="sheet-block">
+          <h3>Genel</h3>
+          <label class="switch-row">
+            <span><b>Sesli uyarı</b><small>Kilit açılırken kısa bir alarm çalar.</small></span>
+            <input type="checkbox" id="optSound">
+            <i aria-hidden="true"></i>
+          </label>
+          <label class="switch-row">
+            <span><b>Titreşim</b><small>Kilit anında cihaz titrer.</small></span>
+            <input type="checkbox" id="optVibrate">
+            <i aria-hidden="true"></i>
+          </label>
+          <label class="switch-row">
+            <span><b>Acil çıkış</b><small>Kilit ekranındaki gizli düğmeyle zorla açabilirsin. Güvenlik için önerilir.</small></span>
+            <input type="checkbox" id="optEmergency">
+            <i aria-hidden="true"></i>
+          </label>
+          <label class="switch-row">
+            <span><b>Pil tasarrufu</b><small>Konumu düşük doğrulukla ve seyrek günceller; uygulama arka plandayken takibi durdurur. Pil ömrü için önerilir.</small></span>
+            <input type="checkbox" id="optPowerSave">
+            <i aria-hidden="true"></i>
+          </label>
+          <div class="row-actions">
+            <button class="ghost" id="notifyBtn" type="button">Bildirim izni</button>
+            <button class="ghost" id="demoBtn" type="button">Kilidi 5 sn test et</button>
+            <button class="ghost" id="checkUpdateBtn" type="button">Güncellemeyi denetle</button>
+          </div>
+        </section>
+
+        <section class="sheet-block">
+          <h3>Veriler</h3>
+          <div class="row-actions">
+            <button class="ghost" id="exportBtn" type="button">Yedekle</button>
+            <button class="ghost" id="importBtn" type="button">Yedekten yükle</button>
+          </div>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+          <button class="danger ghost wide" id="resetAll" type="button">Tüm verileri sil</button>
+          <p class="fine">Kayıtlar yalnızca bu cihazda saklanır. Başka cihaza taşımak için yedek al.</p>
+        </section>
+
+        <section class="sheet-block info-block">
+          <h3>Bilmen gerekenler</h3>
+          <p>Bu uygulama bir web uygulamasıdır. Cihazı tamamen kapatamaz, gelen aramaları engelleyemez; yalnızca kendi ekranını kilitler.</p>
+          <p>Kilitliyken ekran <b>tam siyah ve animasyonsuz</b> bir perdeyle kaplanır. Bu gerçek ekran kapanması değildir; web uygulaması ekranı fiziksel olarak kapatamaz. Ekran gerçekten kapanırsa konum takibi durur.</p>
+          <p>Telefonda gerçekten rahatsız edilmemek için kilit sırasında <b>Rahatsız Etme</b> modunu da aç. Android'de “Rahatsız Etme” izni, iOS'ta “Odaklanma” ayarı gerekir.</p>
+          <p>Konum izni “her zaman” değil, uygulama açıkken çalışır. Uygulama arka plana atılınca konum takibi durur; bu yüzden otomatik kilit için uygulamayı açık tut.</p>
+          <p>Pil tasarrufu açıkken konum daha az sıklıkla ve düşük doğrulukla güncellenir. Seçtiğin alanın sınırında gecikme veya yanlış algılama olabilir.</p>
+        </section>
+
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= KİLİT EKRANI ================= -->
+  <div class="lock" id="lockScreen" hidden>
+    <div class="lock-glow" aria-hidden="true"></div>
+    <div class="lock-inner">
+      <div class="lock-rings" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="lock-clock">
+        <strong id="lockClock">00:00</strong>
+        <span id="lockDate">—</span>
+      </div>
+      <span class="lock-badge"><i aria-hidden="true"></i> KİLİT AKTİF</span>
+      <h1>Ekran<br>kapandı</h1>
+      <p class="lock-place" id="lockPlace">—</p>
+      <p class="lock-desc" id="lockDesc">Bu alandan çıkınca ekran kendiliğinden açılacak.</p>
+
+      <div class="lock-meta">
+        <div><strong id="lockCount">1</strong><span id="lockCountLabel">kez kapandı</span></div>
+        <div><strong id="lockElapsed">00:00</strong><span id="lockElapsedLabel">geçen süre</span></div>
+        <div><strong id="lockDist">—</strong><span id="lockDistLabel">çıkışa</span></div>
+      </div>
+
+      <div class="lock-live" id="lockLive"><span class="pulse-dot" aria-hidden="true"></span> <span id="lockLiveText">Konum izleniyor</span></div>
+      <p class="lock-note">Bu kilit yalnızca uygulama açıkken çalışır. Otomatik açılma için uygulamayı açık tut.</p>
+    </div>
+    <button class="lock-sos" id="sosBtn" type="button" aria-label="Acil çıkış">•••</button>
+  </div>
+
+  <!-- ================= DİYALOGLAR ================= -->
+  <dialog class="dialog" id="sosDialog">
+    <h3>Acil çıkış</h3>
+    <p>Kilitli alanı zorla açmak için aşağıya <b>AÇ</b> yaz.</p>
+    <input class="text-input" id="sosInput" type="text" autocomplete="off" placeholder="AÇ" aria-label="Acil çıkış onayı">
+    <p class="dialog-error" id="sosError" hidden>Yanlış yazdın. Tekrar dene.</p>
+    <div class="dialog-actions">
+      <button class="ghost" id="sosCancel" type="button">Vazgeç</button>
+      <button class="danger" id="sosConfirm" type="button">Kilidi aç</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="confirmDialog">
+    <h3 id="confirmTitle">Emin misin?</h3>
+    <p id="confirmText"></p>
+    <div class="dialog-actions">
+      <button class="ghost" id="confirmNo" type="button">Vazgeç</button>
+      <button class="danger" id="confirmYes" type="button">Evet</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog role-dialog" id="birthDialog" aria-labelledby="birthTitle">
+    <p class="eyebrow">BAŞLARKEN</p>
+    <h3 id="birthTitle">Doğum tarihin ne?</h3>
+    <p>Yaşını hesaplayıp kilit biçimini otomatik seçeceğim. Doğum tarihi yalnızca bu cihazda saklanır.</p>
+    <label class="field">
+      <span>Doğum tarihi (gün / ay / yıl)</span>
+      <input class="text-input" id="birthDateInput" type="date" min="1900-01-01" autocomplete="bday">
+    </label>
+    <p class="fine" id="birthPreview">18 yaş altı: alana girince kilitlenir, çıkınca açılır. 18 yaş ve üzeri: süreli kilit ve mola döngüsü.</p>
+    <p class="dialog-error" id="birthError" hidden></p>
+    <div class="dialog-actions">
+      <button class="ghost" id="birthCancel" type="button" hidden>Vazgeç</button>
+      <button class="primary" id="birthSave" type="button">Devam et</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog group-dialog group-hub-dialog" id="groupHubDialog" aria-labelledby="groupHubTitle">
+    <div class="group-hub-head">
+      <div>
+        <p class="eyebrow">GRUP</p>
+        <h3 id="groupHubTitle">Grup</h3>
+      </div>
+      <button class="icon-btn" type="button" data-close-group-hub aria-label="Kapat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="group-hub-body" id="groupHubContent"></div>
+  </dialog>
+
+  <dialog class="dialog group-dialog" id="createGroupDialog">
+    <h3>Grup oluştur</h3>
+    <p>Grup yöneticisi sen olursun. Üyeleri telefon numaralarıyla davet edebilir, istediğin yerde otomatik kilit kurabilirsin.</p>
+    <label class="field"><span>Grup adı</span>
+      <input class="text-input" id="createGroupName" type="text" maxlength="40" placeholder="ör. Aile" autocomplete="off">
+    </label>
+    <label class="field"><span>Yönetici adın</span>
+      <input class="text-input" id="createGroupAdmin" type="text" maxlength="40" autocomplete="name" placeholder="ör. Ali">
+    </label>
+    <label class="field"><span>Telefonun</span>
+      <input class="text-input" id="createGroupPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx">
+    </label>
+    <p class="fine">Telefonun üyelere gösterilir. Numaran davetlerde ve üye listesinde kullanılır.</p>
+    <p class="dialog-error" id="createGroupError" hidden></p>
+    <div class="dialog-actions">
+      <button class="ghost" type="button" data-close-group-dialog>Vazgeç</button>
+      <button class="primary" id="createGroupConfirm" type="button">Oluştur</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog group-dialog" id="joinGroupDialog">
+    <h3>Gruba katıl</h3>
+    <p>Grup kodunu gir. Yönetici isteğini onayladığında gruba katılırsın.</p>
+    <label class="field"><span>Grup kodu</span>
+      <input class="text-input" id="joinGroupCode" type="text" maxlength="8" autocomplete="off" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:0.12em">
+    </label>
+    <label class="field"><span>Adın</span>
+      <input class="text-input" id="joinGroupName" type="text" maxlength="40" autocomplete="name">
+    </label>
+    <label class="field"><span>Telefonun</span>
+      <input class="text-input" id="joinGroupPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx">
+    </label>
+    <p class="fine" id="joinGroupStatus" hidden></p>
+    <p class="fine">Katılırsan kilit durumun ve izin verdiğin sürece konumun yöneticiyle paylaşılır.</p>
+    <p class="dialog-error" id="joinGroupError" hidden></p>
+    <div class="dialog-actions">
+      <button class="ghost" type="button" data-close-group-dialog>Vazgeç</button>
+      <button class="primary" id="joinGroupConfirm" type="button">Katılma isteği gönder</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog group-dialog" id="inviteCreateDialog">
+    <h3>Telefonla davet et</h3>
+    <p>Numaralara davet bağlantısı oluşturulur. SMS / Paylaş düğmesiyle telefonunun mesajlaşma uygulamasını açabilir veya bağlantıyı kopyalayabilirsin.</p>
+    <label class="field"><span>Telefon numaraları</span>
+      <textarea class="text-input textarea-input" id="invitePhones" rows="3" placeholder="05xx xxx xx xx, 05xx xxx xx xx"></textarea>
+    </label>
+    <label class="field"><span>Davet notu / ad (isteğe bağlı)</span>
+      <input class="text-input" id="inviteName" type="text" maxlength="40" placeholder="ör. Anne">
+    </label>
+    <p class="fine">Birden fazla numarayı virgül veya satırla ayır. Davet 7 gün geçerlidir ve yalnızca davet edilen numarayla kabul edilir.</p>
+    <p class="dialog-error" id="inviteCreateError" hidden></p>
+    <div class="dialog-actions">
+      <button class="ghost" type="button" data-close-group-dialog>Vazgeç</button>
+      <button class="primary" id="inviteCreateConfirm" type="button">Davet oluştur</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog group-dialog" id="groupPlaceDialog">
+    <h3>Grup yeri ekle</h3>
+    <p>Üyeler bu alana girdiğinde cihazları otomatik kilitlenir. Alan yarıçapı sabittir; konum, kaydettiğinde alınır.</p>
+    <label class="field"><span>Yer adı</span>
+      <input class="text-input" id="groupPlaceName" type="text" maxlength="40" placeholder="ör. Okul">
+    </label>
+    <div class="two-col" id="groupPlaceScheduleFields">
+      <label class="field"><span>Kilit süresi (dk)</span>
+        <input class="text-input" id="groupPlaceLockMinutes" type="number" min="0" max="240" step="1" inputmode="numeric" value="50">
+      </label>
+      <label class="field"><span>Mola (dk)</span>
+        <input class="text-input" id="groupPlaceBreakMinutes" type="number" min="0" max="60" step="1" inputmode="numeric" value="10">
+      </label>
+    </div>
+    <p class="fine" id="groupPlaceHint">Kilit süresi 0 ise üye alandan çıkınca açılır. Mola 0 ise süre dolunca o ziyaret için tekrar kilitlenmez.</p>
+    <p class="dialog-error" id="groupPlaceError" hidden></p>
+    <div class="dialog-actions">
+      <button class="ghost" type="button" data-close-group-dialog>Vazgeç</button>
+      <button class="primary" id="groupPlaceSave" type="button">Yeri ekle</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog group-dialog" id="inviteAcceptDialog">
+    <h3>Grup daveti</h3>
+    <p id="inviteAcceptIntro">Davet bilgisi yükleniyor…</p>
+    <label class="field"><span>Adın</span>
+      <input class="text-input" id="inviteAcceptName" type="text" maxlength="40" autocomplete="name">
+    </label>
+    <label class="field"><span>Telefonun</span>
+      <input class="text-input" id="inviteAcceptPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx">
+    </label>
+    <p class="fine">Davet yalnızca davet edilen telefon numarasıyla kabul edilebilir. Katılırsan kilit durumun ve izin verdiğin sürece konumun yöneticiyle paylaşılır.</p>
+    <p class="dialog-error" id="inviteAcceptError" hidden></p>
+    <div class="dialog-actions">
+      <button class="ghost" type="button" data-close-group-dialog>Vazgeç</button>
+      <button class="primary" id="inviteAcceptConfirm" type="button">Gruba katıl</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog group-dialog map-dialog" id="mapDialog">
+    <div class="group-hub-head">
+      <div>
+        <p class="eyebrow">KONUM</p>
+        <h3 id="mapTitle">Üye konumu</h3>
+      </div>
+      <button class="icon-btn" type="button" data-close-group-dialog aria-label="Kapat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <iframe id="mapFrame" title="Üye konumu haritası" loading="lazy" referrerpolicy="no-referrer"></iframe>
+    <p class="fine" id="mapMeta">—</p>
+    <a class="ghost map-link" id="mapLink" href="#" target="_blank" rel="noopener noreferrer">Haritada aç</a>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/app.js" defer></script>
+</body>
+</html>
