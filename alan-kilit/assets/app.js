@@ -6,7 +6,7 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
@@ -3427,8 +3427,8 @@ function showRemoteUpdate(version) {
   if (banner) banner.hidden = false;
   const text = $('#updateText');
   const button = $('#updateBtn');
-  if (text) text.textContent = 'ALAN KİLİT ' + version + ' hazır. Web sayfasını açıp tarayıcıdan kullan veya cihazına kur.';
-  if (button) button.textContent = 'Son sürümü aç';
+  if (text) text.textContent = 'ALAN KİLİT ' + version + ' hazır. Güncel sürümü açıp yeniden yükle.';
+  if (button) button.textContent = 'Son sürüme geç';
 }
 
 function hideUpdateBanner() {
@@ -3438,7 +3438,13 @@ function hideUpdateBanner() {
 
 function applyUpdate() {
   if (!pendingUpdate && remoteUpdateAvailable) {
-    window.location.assign(REMOTE_UPDATE_URL);
+    const updateUrl = new URL(REMOTE_UPDATE_URL);
+    updateUrl.searchParams.set('update', remoteUpdateAvailable);
+    try {
+      window.location.replace(updateUrl.toString());
+    } catch {
+      window.location.href = updateUrl.toString();
+    }
     return;
   }
 
