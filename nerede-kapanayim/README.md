@@ -54,7 +54,9 @@ Sunucu Node.js ile yazıldığı için Linux ve macOS üzerinde ek bağımlılı
 
 ### Güncelleme
 
-Kurulu uygulama açıldığında ve belirli aralıklarla yeni sürüm denetlenir. Yeni sürüm indirildiğinde ekranın altında **“Güncelleme geldi”** bildirimi ve **Güncelle** düğmesi görünür. Düğmeye basınca uygulama yeni sürümle yeniden açılır. Ayarlar → Genel bölümündeki **Güncellemeyi denetle** düğmesiyle de elle denetim yapabilirsin.
+Aynı web adresinden kullanılan kurulu uygulama, yeni dosyaları açılışta ve belirli aralıklarla denetler; güncellemeyi uygulama içindeki **Güncelle** düğmesiyle yükleyebilirsin. İndirilen/eski sürümler de GitHub'daki son sürümü denetler; yeni sürüm varsa Ayarlar → Genel bölümünden **Güncellemeyi denetle** veya ekrandaki **Yeni sürümü indir** düğmesiyle son sürüm sayfasını açabilirsin.
+
+Güvenlik nedeniyle tarayıcı, indirilen bir klasördeki dosyaların üzerine uygulamanın kendisinin yazmasına izin vermez. Bu nedenle klasör kopyalarında yeni sürümü indirip mevcut dosyaları elle güncellemek gerekir; `data/groups.json` gibi yerel verileri silme. Bu uzaktan sürüm denetimi 1.1.0 ve sonrasında gelen sürümlerde bulunur. Daha eski indirilmiş kopyalar, denetleyici özelliği içermediğinden en az bir kez son sürümle değiştirilmelidir.
 
 ### Otomatik konum için HTTPS şart
 

@@ -6,6 +6,9 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
+const APP_VERSION = '1.1.0';
+const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/nerede-kapanayim/version.json';
+const REMOTE_UPDATE_URL = 'https://github.com/Alaaddin-617/UzayOS/tree/main/nerede-kapanayim';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
 const DEFAULT_RADIUS = 100;
 const MIN_RADIUS = 50;
@@ -33,6 +36,8 @@ let pendingUpdate = null;
 let updateDismissed = false;
 let refreshing = false;
 let lastUpdateCheck = 0;
+let lastRemoteVersionCheck = 0;
+let remoteUpdateAvailable = '';
 let toastTimer = null;
 let busy = false;
 let lastRefreshTry = 0;
@@ -3402,11 +3407,28 @@ function showUpdateBanner(worker) {
   const banner = $('#updateBanner');
   const wasHidden = !banner || banner.hidden;
   if (banner) banner.hidden = false;
+  const text = $('#updateText');
+  const button = $('#updateBtn');
+  if (text) text.textContent = 'Yeni sürüm indirildi. Güncellemek için dokun.';
+  if (button) button.textContent = 'Güncelle';
 
   const sheet = $('#settingsSheet');
   if (wasHidden && sheet && !sheet.hidden) {
     toast('Güncelleme hazır — Ayarlar kapanınca Güncelle düğmesi görünecek');
   }
+}
+
+function showRemoteUpdate(version) {
+  if (!version || pendingUpdate) return;
+  if (version !== remoteUpdateAvailable) updateDismissed = false;
+  if (updateDismissed) return;
+  remoteUpdateAvailable = version;
+  const banner = $('#updateBanner');
+  if (banner) banner.hidden = false;
+  const text = $('#updateText');
+  const button = $('#updateBtn');
+  if (text) text.textContent = 'AlanKilit ' + version + ' sürümü hazır. İndirme sayfasını aç.';
+  if (button) button.textContent = 'Yeni sürümü indir';
 }
 
 function hideUpdateBanner() {
@@ -3415,6 +3437,11 @@ function hideUpdateBanner() {
 }
 
 function applyUpdate() {
+  if (!pendingUpdate && remoteUpdateAvailable) {
+    window.location.assign(REMOTE_UPDATE_URL);
+    return;
+  }
+
   try { save(); } catch {}
   refreshing = true;
 
@@ -3438,6 +3465,51 @@ function checkForUpdates(force = false) {
   if (!force && now - lastUpdateCheck < 5 * 60 * 1000) return Promise.resolve();
   lastUpdateCheck = now;
   return swRegistration.update().catch(() => {});
+}
+
+function compareVersions(left, right) {
+  const parse = (value) => {
+    if (!/^\d+(?:\.\d+){1,3}$/.test(String(value || ''))) return null;
+    return String(value).split('.').map(Number);
+  };
+  const a = parse(left);
+  const b = parse(right);
+  if (!a || !b) return null;
+
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const difference = (a[i] || 0) - (b[i] || 0);
+    if (difference) return Math.sign(difference);
+  }
+  return 0;
+}
+
+async function checkLatestVersion(force = false) {
+  const now = Date.now();
+  if (!force && now - lastRemoteVersionCheck < 5 * 60 * 1000) {
+    return remoteUpdateAvailable ? 'available' : 'unchecked';
+  }
+  lastRemoteVersionCheck = now;
+
+  try {
+    const response = await fetch(REMOTE_VERSION_URL + '?check=' + now, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return 'unavailable';
+    const data = await response.json();
+    const comparison = compareVersions(APP_VERSION, data && data.version);
+    if (comparison === null) return 'unavailable';
+    if (comparison < 0) {
+      showRemoteUpdate(data.version);
+      return 'available';
+    }
+
+    remoteUpdateAvailable = '';
+    if (!pendingUpdate) hideUpdateBanner();
+    return 'current';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 function registerServiceWorker() {
@@ -3472,9 +3544,15 @@ function registerServiceWorker() {
   }).catch(() => {});
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') checkForUpdates();
+    if (document.visibilityState === 'visible') {
+      checkForUpdates();
+      checkLatestVersion();
+    }
   });
-  window.addEventListener('online', () => checkForUpdates(true));
+  window.addEventListener('online', () => {
+    checkForUpdates(true);
+    checkLatestVersion(true);
+  });
 }
 
 function bindInstall() {
@@ -3531,24 +3609,20 @@ function bindUpdate() {
 
   if (checkBtn) {
     checkBtn.addEventListener('click', async () => {
-      if (!swRegistration) {
-        toast('Bu tarayıcıda güncelleme denetimi kullanılamıyor');
-        return;
-      }
-
-      if (swRegistration.waiting) {
+      if (swRegistration && swRegistration.waiting) {
         updateDismissed = false;
         showUpdateBanner(swRegistration.waiting);
         return;
       }
 
-      toast('Güncelleme denetleniyor…');
-      await checkForUpdates(true);
-      setTimeout(() => {
-        if (!pendingUpdate && !swRegistration.installing && !swRegistration.waiting) {
-          toast('Uygulama güncel');
-        }
-      }, 1500);
+      toast('Güncellemeler denetleniyor…');
+      const [versionStatus] = await Promise.all([
+        checkLatestVersion(true),
+        checkForUpdates(true)
+      ]);
+      if (versionStatus === 'available') toast('Yeni sürüm indirme sayfasında hazır');
+      else if (versionStatus === 'current') toast('AlanKilit güncel');
+      else toast('Sürüm denetlenemedi. İnternet bağlantısını kontrol et.', true);
     });
   }
 }
@@ -3844,11 +3918,13 @@ function bindEvents() {
       sendGroupStatus(true);
       sendGroupLocation(true);
     }
+    checkLatestVersion();
   });
 
   window.addEventListener('hashchange', route);
   window.addEventListener('online', () => {
     toast('Bağlantı geri geldi');
+    checkLatestVersion(true);
     if (state.group) syncGroup();
     if (state.pendingJoin) checkJoinStatus();
   });
@@ -3901,6 +3977,10 @@ function init() {
   bindInstall();
   bindUpdate();
   registerServiceWorker();
+  checkLatestVersion();
+  setInterval(() => {
+    if (document.visibilityState === 'visible') checkLatestVersion();
+  }, 60 * 60 * 1000);
 
   if (locked) {
     showLock();
