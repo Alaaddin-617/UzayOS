@@ -1,6 +1,6 @@
 {
-  "name": "nerede-kapanayim",
-  "version": "1.1.0",
+  "name": "alan-kilit",
+  "version": "1.1.1",
   "private": true,
   "description": "Konum tabanlı ekran kilidi PWA'sı ve grup sunucusu",
   "scripts": {

@@ -1,14 +1,14 @@
 'use strict';
 
 /* ============================================================
-   AlanKilit — konum kilidi
+   Alan Kilit — konum kilidi
    Tarayıcıda çalışan, konum tabanlı ekran kilidi.
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.0';
-const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/nerede-kapanayim/version.json';
-const REMOTE_UPDATE_URL = 'https://github.com/Alaaddin-617/UzayOS/tree/main/nerede-kapanayim';
+const APP_VERSION = '1.1.1';
+const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
+const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
 const DEFAULT_RADIUS = 100;
 const MIN_RADIUS = 50;
@@ -1297,7 +1297,7 @@ function hideLock() {
   screen.classList.remove('is-screen-off');
   document.body.classList.remove('locked');
   releaseWakeLock();
-  document.title = 'AlanKilit';
+  document.title = 'Alan Kilit';
   maybePromptBirthDate();
 }
 
@@ -1473,7 +1473,7 @@ function notifyLock(place) {
     body: place.name + ' alanındasın. Alandan çıkınca kilit açılacak.',
     icon: 'icon-192.png',
     badge: 'icon-192.png',
-    tag: 'nerede-kapansin',
+    tag: 'alan-kilit',
     renotify: true,
     requireInteraction: true
   };
@@ -3241,7 +3241,7 @@ function exportData() {
   const a = document.createElement('a');
   const stamp = new Date().toISOString().slice(0, 10);
   a.href = url;
-  a.download = 'nerede-kapansin-yedek-' + stamp + '.json';
+  a.download = 'alan-kilit-yedek-' + stamp + '.json';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -3262,7 +3262,7 @@ async function importData(file) {
   }
 
   if (!parsed || !Array.isArray(parsed.places)) {
-    toast('Bu dosya bir AlanKilit yedeği değil', true);
+    toast('Bu dosya bir Alan Kilit yedeği değil', true);
     return;
   }
 
@@ -3427,8 +3427,8 @@ function showRemoteUpdate(version) {
   if (banner) banner.hidden = false;
   const text = $('#updateText');
   const button = $('#updateBtn');
-  if (text) text.textContent = 'AlanKilit ' + version + ' sürümü hazır. İndirme sayfasını aç.';
-  if (button) button.textContent = 'Yeni sürümü indir';
+  if (text) text.textContent = 'Alan Kilit ' + version + ' hazır. Web sayfasını açıp tarayıcıdan kullan veya cihazına kur.';
+  if (button) button.textContent = 'Son sürümü aç';
 }
 
 function hideUpdateBanner() {
@@ -3560,6 +3560,9 @@ function bindInstall() {
   const installBtn = $('#installBtn');
   const dismissBtn = $('#installDismiss');
 
+  const isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (isInstalled && banner) banner.hidden = true;
+
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     deferredPrompt = event;
@@ -3575,8 +3578,11 @@ function bindInstall() {
   if (installBtn) {
     installBtn.addEventListener('click', async () => {
       if (!deferredPrompt) {
-        toast('Kurulum için tarayıcı menüsünden “Ana ekrana ekle” seçeneğini kullan');
-        return;
+          const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
+          toast(isAppleMobile
+            ? 'Safari Paylaş menüsünü açıp “Ana Ekrana Ekle”yi seç'
+            : 'Tarayıcı menüsünden “Uygulamayı yükle” veya “Ana ekrana ekle”yi seç');
+          return;
       }
       deferredPrompt.prompt();
       try { await deferredPrompt.userChoice; } catch {}
@@ -3621,7 +3627,7 @@ function bindUpdate() {
         checkForUpdates(true)
       ]);
       if (versionStatus === 'available') toast('Yeni sürüm indirme sayfasında hazır');
-      else if (versionStatus === 'current') toast('AlanKilit güncel');
+      else if (versionStatus === 'current') toast('Alan Kilit güncel');
       else toast('Sürüm denetlenemedi. İnternet bağlantısını kontrol et.', true);
     });
   }

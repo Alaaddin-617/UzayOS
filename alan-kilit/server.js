@@ -1,4 +1,4 @@
-/* AlanKilit yerel sunucusu
+/* Alan Kilit yerel sunucusu
    Bilgisayarda: http://localhost:8090
    Aynı Wi-Fi'daki telefon/tablet: http://<bilgisayar-ip>:8090
    (Telefonda otomatik konum için HTTPS gerekir; README'ye bak.)
@@ -69,7 +69,7 @@ function kaydet() {
     fs.mkdirSync(DATA_KLASORU, { recursive: true });
     fs.writeFileSync(DATA_DOSYASI, JSON.stringify(store, null, 2));
   } catch (hata) {
-    console.error('[AlanKilit] Grup verisi yazılamadı:', hata.message);
+    console.error('[Alan Kilit] Grup verisi yazılamadı:', hata.message);
   }
 }
 
@@ -1145,10 +1145,10 @@ function baslat(port, deneme = 0) {
 
   sunucu.on('error', (hata) => {
     if (hata.code === 'EADDRINUSE' && deneme < 10) {
-      console.log(`[AlanKilit] ${port} portu dolu, ${port + 1} deneniyor…`);
+      console.log(`[Alan Kilit] ${port} portu dolu, ${port + 1} deneniyor…`);
       baslat(port + 1, deneme + 1);
     } else {
-      console.error('[AlanKilit] Sunucu hatası:', hata.message);
+      console.error('[Alan Kilit] Sunucu hatası:', hata.message);
     }
   });
 
@@ -1158,7 +1158,7 @@ function baslat(port, deneme = 0) {
 
     console.log('');
     console.log('  ==============================================');
-    console.log('     AlanKilit çalışıyor');
+    console.log('     Alan Kilit çalışıyor');
     console.log('  ==============================================');
     console.log(`     Bilgisayar : ${sema}://localhost:${port}`);
     adresler.forEach((adres) => {

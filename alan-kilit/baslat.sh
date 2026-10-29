@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nerede Kapansın? — Linux / macOS başlatma
+# Alan Kilit — Linux / macOS başlatma
 set -euo pipefail
 
 cd "$(dirname "$0")"

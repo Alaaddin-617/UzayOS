@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060a11">
-  <meta name="description" content="AlanKilit: seçtiğin konum alanına girince ekranını kilitleyen, çıkınca açan konum uygulaması.">
-  <title>AlanKilit</title>
+  <meta name="description" content="Alan Kilit: seçtiğin konum alanına girince ekranını kilitleyen, çıkınca açan konum uygulaması. Tarayıcıda kullan veya cihazına kur.">
+  <meta name="apple-mobile-web-app-title" content="Alan Kilit">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Alan Kilit</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -21,7 +24,7 @@
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6" class="fill"/></svg>
       </span>
-      <span class="brand-text">AlanKilit</span>
+      <span class="brand-text">Alan Kilit</span>
     </a>
     <button class="gps-pill" id="gpsPill" type="button" title="Konum durumu">
       <span class="gps-dot" aria-hidden="true"></span>
@@ -55,14 +58,14 @@
         <p class="hint"><strong>Şu anki konumun</strong> bu yerin merkezi olur. 18 yaş altında alandan çıkınca açılır; 18 yaş ve üzerinde kilit ve mola süreleri kullanılır.</p>
       </form>
 
-      <div class="install-banner" id="installBanner" hidden>
+      <div class="install-banner" id="installBanner">
         <div>
-          <strong>Uygulamayı cihaza kur</strong>
-          <span>Tam ekran açılır, çevrimdışı çalışır.</span>
+          <strong>Alan Kilit'i cihazına kur</strong>
+          <span>Tarayıcıda kullan veya ana ekrana ekleyip uygulama gibi aç.</span>
         </div>
         <div class="install-actions">
-          <button class="ghost small" id="installDismiss" type="button">Sonra</button>
-          <button class="primary small" id="installBtn" type="button">Kur</button>
+          <button class="ghost small" id="installDismiss" type="button">Daha sonra</button>
+          <button class="primary small" id="installBtn" type="button">Cihaza kur</button>
         </div>
       </div>
 

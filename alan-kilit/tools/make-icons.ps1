@@ -1,4 +1,4 @@
-# Nerede Kapansın? — PNG simgeleri üretir
+# Alan Kilit — PNG simgeleri üretir
 # Kullanım: powershell -ExecutionPolicy Bypass -File tools\make-icons.ps1
 
 Add-Type -AssemblyName System.Drawing
