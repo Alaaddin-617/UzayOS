@@ -1,4 +1,4 @@
-# Alan Kilit
+# ALAN KİLİT
 
 Konum tabanlı ekran kilidi. Seçtiğin alana **girdiğinde ekranı kilitler**, alandan **çıktığında kendiliğinden açar** ve o yerde kaç kez kapandığını sayar.
 
@@ -7,6 +7,8 @@ Alan Kilit önce web tarayıcısında çalışır; Android, iPhone/iPad, Windows
 **Web uygulaması:** https://alaaddin-617.github.io/UzayOS/
 
 İndirme ve kurulum sayfası da bu web uygulamasıdır: buradan tarayıcıda devam edebilir veya **Cihaza kur** düğmesiyle destekleyen tarayıcılarda ana ekrana/uygulama menüsüne ekleyebilirsin. Ayrı bir Windows, macOS, Android ya da iOS mağaza paketi değildir.
+
+Kurulu uygulama adı tarayıcı tarafından güncellenir; bazı cihazlar eski adı önbellekte tutabilir. Güncel sürümü açıp uygulama adını yenilemek için cihazın uygulama/ana ekranından kaldır ve tarayıcıdaki **Cihaza kur** seçeneğiyle yeniden ekle.
 
 Kurulum, cihazına özgü bir mağaza uygulaması indirmek yerine tarayıcının yerleşik PWA desteğini kullanır; özellik ve arka plan konum desteği tarayıcı/işletim sistemine göre değişebilir. En iyi konum desteği için HTTPS kullan ve otomatik kilit sırasında Alan Kilit'i açık tut.
 

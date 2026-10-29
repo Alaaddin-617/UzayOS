@@ -1,7 +1,7 @@
 {
-  "name": "Alan Kilit",
-  "short_name": "Alan Kilit",
-  "description": "Seçtiğin konum alanına girince ekranını kilitleyen, çıkınca açan uygulama.",
+  "name": "ALAN KİLİT",
+  "short_name": "ALAN KİLİT",
+  "description": "ALAN KİLİT: Seçtiğin konuma göre ekranını kilitleyen konum uygulaması.",
   "lang": "tr",
   "dir": "ltr",
   "start_url": "./",

@@ -6,7 +6,7 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
@@ -1297,7 +1297,7 @@ function hideLock() {
   screen.classList.remove('is-screen-off');
   document.body.classList.remove('locked');
   releaseWakeLock();
-  document.title = 'Alan Kilit';
+  document.title = 'ALAN KİLİT';
   maybePromptBirthDate();
 }
 
@@ -3262,7 +3262,7 @@ async function importData(file) {
   }
 
   if (!parsed || !Array.isArray(parsed.places)) {
-    toast('Bu dosya bir Alan Kilit yedeği değil', true);
+    toast('Bu dosya bir ALAN KİLİT yedeği değil', true);
     return;
   }
 
@@ -3427,7 +3427,7 @@ function showRemoteUpdate(version) {
   if (banner) banner.hidden = false;
   const text = $('#updateText');
   const button = $('#updateBtn');
-  if (text) text.textContent = 'Alan Kilit ' + version + ' hazır. Web sayfasını açıp tarayıcıdan kullan veya cihazına kur.';
+  if (text) text.textContent = 'ALAN KİLİT ' + version + ' hazır. Web sayfasını açıp tarayıcıdan kullan veya cihazına kur.';
   if (button) button.textContent = 'Son sürümü aç';
 }
 
@@ -3627,7 +3627,7 @@ function bindUpdate() {
         checkForUpdates(true)
       ]);
       if (versionStatus === 'available') toast('Yeni sürüm indirme sayfasında hazır');
-      else if (versionStatus === 'current') toast('Alan Kilit güncel');
+      else if (versionStatus === 'current') toast('ALAN KİLİT güncel');
       else toast('Sürüm denetlenemedi. İnternet bağlantısını kontrol et.', true);
     });
   }
