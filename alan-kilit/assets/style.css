@@ -410,6 +410,8 @@ input[type="range"] {
 .install-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 
 .update-banner {
+  flex-direction: column;
+  align-items: stretch;
   position: fixed;
   left: 50%;
   bottom: calc(96px + env(safe-area-inset-bottom));
@@ -424,6 +426,18 @@ input[type="range"] {
   backdrop-filter: blur(12px);
 }
 .update-banner strong { color: #fde68a; }
+.release-notes-preview,
+.release-notes-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.release-notes-preview li + li,
+.release-notes-list li + li { margin-top: 4px; }
+.release-notes-dialog { max-height: min(80dvh, 640px); overflow-y: auto; }
+.release-notes-dialog .release-notes-list { margin-top: 0; color: var(--text); font-size: 13px; }
 
 /* ---------- Yer listesi ---------- */
 

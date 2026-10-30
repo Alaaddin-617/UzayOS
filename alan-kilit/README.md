@@ -10,7 +10,7 @@ Alan Kilit önce web tarayıcısında çalışır; Android, iPhone/iPad, Windows
 
 Kurulu uygulama adı tarayıcı tarafından güncellenir; bazı cihazlar eski adı önbellekte tutabilir. Güncel sürümü açıp uygulama adını yenilemek için cihazın uygulama/ana ekranından kaldır ve tarayıcıdaki **Cihaza kur** seçeneğiyle yeniden ekle.
 
-Kurulum, cihazına özgü bir mağaza uygulaması indirmek yerine tarayıcının yerleşik PWA desteğini kullanır; özellik ve arka plan konum desteği tarayıcı/işletim sistemine göre değişebilir. En iyi konum desteği için HTTPS kullan ve otomatik kilit sırasında Alan Kilit'i açık tut.
+Kurulum, cihazına özgü bir mağaza uygulaması indirmek yerine tarayıcının yerleşik PWA desteğini kullanır; özellikler tarayıcı/işletim sistemine göre değişebilir. Bu web/PWA sürümü uygulama kapalıyken konum alamaz veya geofence çalıştıramaz. En iyi konum desteği için HTTPS kullan ve otomatik kilit sırasında Alan Kilit'i açık tut.
 
 ## Ne yapar?
 
@@ -18,7 +18,7 @@ Kurulum, cihazına özgü bir mağaza uygulaması indirmek yerine tarayıcının
 - **18 yaş altı:** alana girince kilitlenir, alandan çıkınca açılır. Kilit süresi ve mola kullanılmaz.
 - **18 yaş ve üzeri:** her yerde **kilit süresi** ve **mola** vardır. Örneğin 50 dk kilit + 10 dk mola: alana girince kilitlenir, 50 dk sonra mola için açılır, 10 dk sonra hâlâ içerideysen tekrar kilitlenir. Süre 0 ise çıkınca açılır.
 - Bir yer adı yazıp **Kilidi kur** dersin; yeni alanlar ayarlardan da eklenebilir.
-- Şu anki konumun o yerin merkezi olur. Algılama yarıçapı varsayılan 100 metredir ve her kişisel yer için 50–1000 metre arasında ayarlanabilir.
+- Yer eklerken cihazın o anki konumu merkeze alınır; var olan bir yeri de **Konumu buraya ayarla** ile güncelleyebilirsin. Kullanıcıdan algılama mesafesi seçmesi istenmez; uygulama dahili bir sınır kullanır (yeni alanlarda yaklaşık 100 m). Eski kayıtlardaki sınırlar veri uyumluluğu için korunur.
 - Kaydedince yerin kendi ekranına geçer: radar, konum durumu, **kaç kez kapandığı**, toplam kilit süresi ve son kapanma zamanı.
 - Alanın içine girdiğinde tam ekran **siyah, animasyonsuz** kilit perdesi açılır; çıkınca otomatik kapanır. Bu, gerçek ekran kapanması değildir; web uygulaması ekranı fiziksel olarak kapatamaz.
 - Sağ alttaki **ayarlar** düğmesinden yeni yerler ekleyebilir, mevcut yerin adını ve sürelerini değiştirebilir, sayacı sıfırlayabilir, yedek alabilirsin.
@@ -60,7 +60,9 @@ Sunucu Node.js ile yazıldığı için Linux ve macOS üzerinde ek bağımlılı
 
 ### Güncelleme
 
-Aynı web adresinden kullanılan kurulu uygulama, yeni dosyaları açılışta ve belirli aralıklarla denetler; güncellemeyi uygulama içindeki **Güncelle** düğmesiyle yükleyebilirsin. İndirilen/eski sürümler de GitHub'daki son sürümü denetler; yeni sürüm varsa Ayarlar → Genel bölümünden **Güncellemeyi denetle** veya ekrandaki **Yeni sürümü indir** düğmesiyle güncel web uygulamasını açıp cihaza kurabilirsin.
+Aynı web adresinden kullanılan kurulu uygulama, yeni dosyaları açılışta ve belirli aralıklarla denetler; güncellemeyi uygulama içindeki **Güncelle** düğmesiyle yükleyebilirsin. Yeni sürüm bildirimi, o sürümün yenilik listesini gösterir. Kurulumdan sonra Ayarlar → Genel → **Bu sürümdeki yenilikler** yoluyla tekrar açabilirsin. İndirilen/eski sürümler de GitHub'daki son sürümü denetler; yeni sürüm varsa Ayarlar → Genel bölümünden **Güncellemeyi denetle** veya ekrandaki **Son sürüme geç** düğmesiyle güncel web uygulamasını açıp cihaza kurabilirsin.
+
+Her sürüm yayınında `version.json` içindeki `version` değerini güncelle ve `releases` listesine bu sürüm için kullanıcıya dönük `changes` maddeleri ekle. Önceki sürümlerin maddelerini listede tut; uygulama kurulduktan sonra kurulu sürümün notlarını bu listeden bulur. Sürüm bilgisi önbelleksiz istenir; yeni notlar eski servis çalışanı önbelleğinde kalmaz.
 
 Güvenlik nedeniyle tarayıcı, indirilen bir klasördeki dosyaların üzerine uygulamanın kendisinin yazmasına izin vermez. Klasör kopyalarında **Yeni sürümü indir** güncel web sayfasını açar; kalıcı kullanım için bu sayfadan PWA olarak yeniden kur. `data/groups.json` gibi yerel verileri silme. Uzaktan sürüm denetimi 1.1.0 ve sonrası sürümlerde bulunur; daha eski kopyalar önce güncel sürümle değiştirilmelidir.
 
@@ -106,7 +108,7 @@ Grup özelliği için `server.js` çalışıyor olmalıdır. Grup verileri `data
 2. Yönetici, **Telefonla davet et** ile numara ekler. **SMS / Paylaş** cihazın mesajlaşma/paylaşma ekranını açar ve davet bağlantısını kopyalar. SMS gönderimi için ayrı bir SMS servisi yoktur.
 3. Davet bağlantısı `?davet=...` ile açılır. Davet yalnızca davet edilen telefon numarasıyla kabul edilir.
 4. Grup koduyla katılmak isteyenler **bekleyen istek** oluşturur; yönetici onaylar veya reddeder.
-5. Yönetici **Grup yeri ekle** ile ortak otomatik kilit alanları tanımlar. Konum, ekleme anındaki cihaz konumundan alınır; yarıçap sabittir.
+5. Yönetici **Grup yeri ekle** ile ortak otomatik kilit alanları tanımlar. Konum, ekleme anındaki cihaz konumundan alınır; üyelerin cihazı uygulamanın dahili konum sınırını kullanır.
 6. Yönetici üyeleri tek tek veya **Hepsini kilitle/aç** ile uzaktan kilitleyebilir. Uzaktan kilit, üyenin uygulaması açıkken çalışır.
 7. Yönetici üyelerin telefonunu, son görülme zamanını, kilit durumunu, paylaşılan konumunu ve uygulama içi hareketlerini görür. Üye konum paylaşımını kapatabilir; kilit ve durum bilgisi paylaşılmaya devam eder.
 8. Bir cihaz aynı anda tek grupta olabilir. Üye gruptan ayrılabilir, yönetici üyeyi çıkarabilir veya grubu dağıtabilir.
@@ -128,11 +130,12 @@ Bu bir web uygulamasıdır; işletim sisteminin yerine geçmez:
 - Cihazı **tamamen kapatamaz**, uygulamaları sonlandıramaz.
 - Kilit sırasında ekranı **tam siyah, animasyonsuz bir perde** kaplar; bu gerçek ekran kapanması değildir. Ekran fiziksel olarak kapanırsa konum takibi durur, bu yüzden otomatik açılma da çalışmaz. Otomatik açılma için uygulama açık kalmalıdır.
 - **Gelen aramaları engelleyemez.** Bunun için Android'de **Rahatsız Etme** iznini, iOS'ta **Odaklanma** modunu ayrıca açmalısın.
-- Kilit yalnızca uygulama açıkken ve konum izni verildiğinde çalışır. Tarayıcıyı kapatmak veya uygulamayı arka plana atmak takibi durdurur; bu nedenle otomatik kilit ve uzaktan kilit için uygulamayı açık tut.
+- Kilit yalnızca uygulama açıkken ve konum izni verildiğinde çalışır. Sekmeyi kapatmak, uygulamayı son uygulamalardan kaydırmak veya Android'de zorla durdurmak takibi durdurur. Tekrar açıldığında konum alınır ve alan durumu yeniden değerlendirilir; kapalı kaldığı sırada giriş/çıkış olayı kaçabilir. Otomatik kilit ve uzaktan kilit için uygulamayı açık tut.
 - Sayfa yenilenirse kilit kaydı korunur; konum alınınca durum yeniden değerlendirilir. Süreli kilitte mola süresi de cihazda saklanır.
 - 18 yaş altı için “alandan çıkınca” ifadesi seçilen algılama alanının dışına çıkmak anlamına gelir; GPS hassasiyeti nedeniyle tek bir adım değil, alan sınırı esas alınır.
-- Pil tasarrufu açıkken konum düşük doğrulukla güncellenir. Alan sınırında gecikme veya yanlış algılama olabilir; gerekirse yarıçapı büyüt veya ayarlardan pil tasarrufunu kapat.
-- Web uygulaması arka planda konum izleyemediği için **uygulama kapalıyken veya tamamen kapatılmışken otomatik kilit çalışmaz**.
+- GPS doğruluğu, binalar ve işletim sistemi konum güncellemeleri etkili olduğundan alan sınırında gecikme veya yanlış algılama olabilir. Uygulama cami/okul gibi yer türlerini ya da gerçek bina sınırlarını tanımaz; kaydedilen noktanın yakınlığını ölçer.
+- Bu depoda Android yerel uygulaması/Geofencing API entegrasyonu yoktur. Arka plan konumu, işletim sistemi tarafından ayrıca izin verilen yerel bir Android uygulaması gerektirir. Android'de bile kullanıcı uygulamayı **Zorla durdur** derse işletim sistemi yeniden açılana kadar işleri durdurur; bu durumu atlatmaya çalışılmaz. iOS ve diğer platformların arka plan konum kuralları farklıdır.
+- Web uygulaması arka planda konum izleyemediği için **uygulama kapalıyken otomatik kilit çalışmaz**.
 - Grup yöneticisi yalnızca bu uygulamanın paylaştığı verileri görür; telefonun diğer uygulamalarını, aramaları veya gerçek konum geçmişini göremez.
 
 ## Dosya yapısı

@@ -179,7 +179,8 @@
   <div class="install-banner update-banner" id="updateBanner" role="status" aria-live="polite" hidden>
     <div>
       <strong>Güncelleme geldi</strong>
-      <span id="updateText">Yeni sürüm indirildi. Güncellemek için dokun.</span>
+      <span id="updateText">Yeni sürüm indirildi.</span>
+      <ul class="release-notes-preview" id="updateChanges"></ul>
     </div>
     <div class="install-actions">
       <button class="ghost small" id="updateDismiss" type="button">Sonra</button>
@@ -253,14 +254,10 @@
               <input class="text-input" id="newBreakMinutes" type="number" min="0" max="60" step="1" inputmode="numeric" value="10">
             </label>
           </div>
-          <label class="field">
-            <span>Algılama yarıçapı (metre)</span>
-            <input class="text-input" id="newRadius" type="number" min="50" max="1000" step="25" inputmode="numeric" value="100">
-          </label>
           <div class="row-actions">
             <button class="primary wide" id="newSave" type="button">Şu anki konuma ekle</button>
           </div>
-          <p class="fine" id="newPlaceHint">Yer, kaydettiğinde alınan konuma göre belirlenir. Kilit süresi 0 ise alandan çıkınca açılır.</p>
+          <p class="fine" id="newPlaceHint">Yer, kaydettiğinde alınan konuma göre belirlenir. Algılama sınırını uygulama yönetir; GPS hassasiyetine göre giriş veya çıkış gecikebilir.</p>
         </section>
 
         <section class="sheet-block" id="editPlaceBlock" hidden>
@@ -279,10 +276,6 @@
               <input class="text-input" id="editBreakMinutes" type="number" min="0" max="60" step="1" inputmode="numeric">
             </label>
           </div>
-          <label class="field">
-            <span>Algılama yarıçapı (metre)</span>
-            <input class="text-input" id="editRadius" type="number" min="50" max="1000" step="25" inputmode="numeric">
-          </label>
           <p class="fine" id="editScheduleHint" hidden>18 yaş altı: süre yerine alandan çıkınca açılır.</p>
           <div class="row-actions">
             <button class="ghost" id="editUseCurrent" type="button">Konumu buraya ayarla</button>
@@ -312,7 +305,7 @@
             <i aria-hidden="true"></i>
           </label>
           <label class="switch-row">
-            <span><b>Pil tasarrufu</b><small>Konumu düşük doğrulukla ve seyrek günceller; uygulama arka plandayken takibi durdurur. Pil ömrü için önerilir.</small></span>
+            <span><b>Pil tasarrufu</b><small>Uygulama açıkken konumu daha seyrek ve düşük doğrulukla günceller. Arka plan veya kapalı uygulama takibi sağlamaz.</small></span>
             <input type="checkbox" id="optPowerSave">
             <i aria-hidden="true"></i>
           </label>
@@ -320,6 +313,7 @@
             <button class="ghost" id="notifyBtn" type="button">Bildirim izni</button>
             <button class="ghost" id="demoBtn" type="button">Kilidi 5 sn test et</button>
             <button class="ghost" id="checkUpdateBtn" type="button">Güncellemeyi denetle</button>
+            <button class="ghost" id="currentReleaseNotesBtn" type="button">Bu sürümdeki yenilikler</button>
           </div>
         </section>
 
@@ -339,7 +333,7 @@
           <p>Bu uygulama bir web uygulamasıdır. Cihazı tamamen kapatamaz, gelen aramaları engelleyemez; yalnızca kendi ekranını kilitler.</p>
           <p>Kilitliyken ekran <b>tam siyah ve animasyonsuz</b> bir perdeyle kaplanır. Bu gerçek ekran kapanması değildir; web uygulaması ekranı fiziksel olarak kapatamaz. Ekran gerçekten kapanırsa konum takibi durur.</p>
           <p>Telefonda gerçekten rahatsız edilmemek için kilit sırasında <b>Rahatsız Etme</b> modunu da aç. Android'de “Rahatsız Etme” izni, iOS'ta “Odaklanma” ayarı gerekir.</p>
-          <p>Konum izni “her zaman” değil, uygulama açıkken çalışır. Uygulama arka plana atılınca konum takibi durur; bu yüzden otomatik kilit için uygulamayı açık tut.</p>
+          <p><b>Alan Kilit web/PWA sürümüdür.</b> Konum izni yalnızca uygulama açıkken kullanılır; sekmeyi kapatmak, uygulamayı son uygulamalardan kaydırıp kapatmak veya Android'de zorla durdurmak konum takibini durdurur. Otomatik kilit için uygulamayı açık tut. Yeniden açınca konum tekrar alınır ve alan durumu güncellenir.</p>
           <p>Pil tasarrufu açıkken konum daha az sıklıkla ve düşük doğrulukla güncellenir. Seçtiğin alanın sınırında gecikme veya yanlış algılama olabilir.</p>
         </section>
 
@@ -391,6 +385,15 @@
     <div class="dialog-actions">
       <button class="ghost" id="confirmNo" type="button">Vazgeç</button>
       <button class="danger" id="confirmYes" type="button">Evet</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog release-notes-dialog" id="releaseNotesDialog" aria-labelledby="releaseNotesTitle">
+    <h3 id="releaseNotesTitle">Sürüm yenilikleri</h3>
+    <p id="releaseNotesEmpty" hidden></p>
+    <ul class="release-notes-list" id="releaseNotesList"></ul>
+    <div class="dialog-actions">
+      <button class="primary" id="releaseNotesClose" type="button">Tamam</button>
     </div>
   </dialog>
 
@@ -483,7 +486,7 @@
 
   <dialog class="dialog group-dialog" id="groupPlaceDialog">
     <h3>Grup yeri ekle</h3>
-    <p>Üyeler bu alana girdiğinde cihazları otomatik kilitlenir. Alan yarıçapı sabittir; konum, kaydettiğinde alınır.</p>
+    <p>Üyeler kaydedilen konumun yakınına girdiğinde cihazları otomatik kilitlenir. Uygulama konum sınırını kendisi belirler; GPS ve tarayıcı hassasiyetine göre algılama gecikebilir.</p>
     <label class="field"><span>Yer adı</span>
       <input class="text-input" id="groupPlaceName" type="text" maxlength="40" placeholder="ör. Okul">
     </label>
@@ -537,6 +540,8 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="assets/geofence.js" defer></script>
+  <script src="assets/release-notes.js" defer></script>
   <script src="assets/app.js" defer></script>
 </body>
 </html>
