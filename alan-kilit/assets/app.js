@@ -6,13 +6,11 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.1.6';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
-const DEFAULT_RADIUS = 100;
-const MIN_RADIUS = 50;
-const MAX_RADIUS = 1000;
+const { DEFAULT_RADIUS, storedRadius } = window.AreaGeofence;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -38,6 +36,10 @@ let refreshing = false;
 let lastUpdateCheck = 0;
 let lastRemoteVersionCheck = 0;
 let remoteUpdateAvailable = '';
+let releaseManifest = null;
+let currentRelease = null;
+let remoteRelease = null;
+let requestedReleaseVersion = '';
 let toastTimer = null;
 let busy = false;
 let lastRefreshTry = 0;
@@ -132,13 +134,6 @@ function ageModeText(age) {
 function minutesValue(value, fallback, max = 240) {
   if (value === undefined || value === null || value === '') return clamp(Math.floor(Number(fallback) || 0), 0, max);
   return clamp(Math.floor(Number(value) || 0), 0, max);
-}
-
-function radiusValue(value, fallback = DEFAULT_RADIUS) {
-  const parsed = value === undefined || value === null || value === ''
-    ? Number(fallback)
-    : Number(value);
-  return clamp(Number.isFinite(parsed) ? Math.round(parsed) : DEFAULT_RADIUS, MIN_RADIUS, MAX_RADIUS);
 }
 
 function phoneDigits(value) {
@@ -333,7 +328,7 @@ function normalizePlace(p, index) {
     name: (p && p.name ? String(p.name) : 'Yer').slice(0, 40),
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
-    radius: radiusValue(p && p.radius),
+    radius: storedRadius(p && p.radius),
     color: (p && p.color) || PALETTE[index % PALETTE.length],
     count: Math.max(0, Math.floor(Number(p && p.count) || 0)),
     totalMs: Math.max(0, Number(p && p.totalMs) || 0),
@@ -1637,7 +1632,6 @@ function renderPlace() {
   const bits = [];
   if (p.count) bits.push(p.count + ' kez kapandı');
   else bits.push('henüz kapanmadı');
-  bits.push(p.radius + ' m yarıçap');
   if (!isAdult()) bits.push('18 yaş altı · çıkınca açılır');
   else if (p.lockMinutes > 0) bits.push(p.lockMinutes + ' dk kilit · ' + (p.breakMinutes || 0) + ' dk mola');
   else bits.push('çıkınca açılır');
@@ -1837,7 +1831,7 @@ function createPlace(name, coords, options = {}) {
     name: name.slice(0, 40),
     lat: Number(coords.lat),
     lng: Number(coords.lng),
-    radius: radiusValue(options.radius),
+    radius: DEFAULT_RADIUS,
     color: PALETTE[state.places.length % PALETTE.length],
     count: 0,
     totalMs: 0,
@@ -1906,8 +1900,6 @@ function syncSettings() {
   const defaults = roleDefaults(state.role);
   if ($('#newLockMinutes') && !$('#newLockMinutes').value) $('#newLockMinutes').value = defaults.lockMinutes;
   if ($('#newBreakMinutes') && !$('#newBreakMinutes').value) $('#newBreakMinutes').value = defaults.breakMinutes;
-  if ($('#newRadius') && !$('#newRadius').value) $('#newRadius').value = DEFAULT_RADIUS;
-
   const p = selectedId ? getPlace(selectedId) : null;
   const editBlock = $('#editPlaceBlock');
   editBlock.hidden = !p;
@@ -1916,7 +1908,6 @@ function syncSettings() {
     $('#editName').value = p.name;
     $('#editLockMinutes').value = p.lockMinutes || 0;
     $('#editBreakMinutes').value = p.breakMinutes || 0;
-    $('#editRadius').value = p.radius;
   }
 }
 
@@ -2137,6 +2128,7 @@ function handleStartupLink() {
   if (startupLinkHandled) return;
   startupLinkHandled = true;
   const params = new URLSearchParams(location.search);
+  requestedReleaseVersion = params.get('update') || '';
   const inviteToken = params.get('davet');
   const groupCode = params.get('grup');
   if (inviteToken) {
@@ -3072,7 +3064,6 @@ async function saveNewPlaceFromSheet() {
   const defaults = roleDefaults(state.role);
   const lockMinutes = minutesValue($('#newLockMinutes').value, defaults.lockMinutes, 240);
   const breakMinutes = minutesValue($('#newBreakMinutes').value, defaults.breakMinutes, 60);
-  const radius = radiusValue($('#newRadius').value);
   const button = $('#newSave');
 
   if (!name) {
@@ -3093,9 +3084,8 @@ async function saveNewPlaceFromSheet() {
       return;
     }
 
-    const place = createPlace(name, fix, { lockMinutes, breakMinutes, radius });
+    const place = createPlace(name, fix, { lockMinutes, breakMinutes });
     $('#newPlaceName').value = '';
-    $('#newRadius').value = DEFAULT_RADIUS;
     closeSheet();
     openPlace(place.id);
     toast('Yer kaydedildi: ' + place.name);
@@ -3111,8 +3101,6 @@ function saveEditPlace() {
   const name = $('#editName').value.trim().replace(/\s+/g, ' ');
   const lockMinutes = minutesValue($('#editLockMinutes').value, p.lockMinutes || 0, 240);
   const breakMinutes = minutesValue($('#editBreakMinutes').value, p.breakMinutes || 0, 60);
-  const radius = radiusValue($('#editRadius').value, p.radius);
-
   if (!name) {
     toast('Yer adı boş olamaz', true);
     return;
@@ -3125,7 +3113,6 @@ function saveEditPlace() {
   p.name = name.slice(0, 40);
   p.lockMinutes = lockMinutes;
   p.breakMinutes = breakMinutes;
-  p.radius = radius;
   p.breakUntil = 0;
   if (lastFix) evaluatePositions();
 
@@ -3409,8 +3396,9 @@ function showUpdateBanner(worker) {
   if (banner) banner.hidden = false;
   const text = $('#updateText');
   const button = $('#updateBtn');
-  if (text) text.textContent = 'Yeni sürüm indirildi. Güncellemek için dokun.';
+  if (text) text.textContent = 'Yeni sürüm indirildi.';
   if (button) button.textContent = 'Güncelle';
+  renderUpdateChanges(remoteRelease || currentRelease);
 
   const sheet = $('#settingsSheet');
   if (wasHidden && sheet && !sheet.hidden) {
@@ -3419,16 +3407,68 @@ function showUpdateBanner(worker) {
 }
 
 function showRemoteUpdate(version) {
-  if (!version || pendingUpdate) return;
+  if (!version) return;
   if (version !== remoteUpdateAvailable) updateDismissed = false;
   if (updateDismissed) return;
   remoteUpdateAvailable = version;
+  remoteRelease = AreaReleaseNotes.notesFor(releaseManifest, version) || { version, changes: [] };
   const banner = $('#updateBanner');
   if (banner) banner.hidden = false;
   const text = $('#updateText');
   const button = $('#updateBtn');
-  if (text) text.textContent = 'ALAN KİLİT ' + version + ' hazır. Güncel sürümü açıp yeniden yükle.';
-  if (button) button.textContent = 'Son sürüme geç';
+  if (text) text.textContent = 'ALAN KİLİT ' + version + ' hazır. Yenilikler:';
+  if (button) button.textContent = pendingUpdate ? 'Güncelle' : 'Son sürüme geç';
+  renderUpdateChanges(remoteRelease);
+}
+
+function renderUpdateChanges(release) {
+  const list = $('#updateChanges');
+  if (!list) return;
+  list.replaceChildren();
+  const changes = release && release.changes;
+  const items = changes && changes.length ? changes : ['Bu sürüm için yenilik açıklaması henüz eklenmedi.'];
+  for (const change of items) {
+    const item = document.createElement('li');
+    item.textContent = change;
+    list.appendChild(item);
+  }
+}
+
+function showReleaseNotes(release, message) {
+  const dialog = $('#releaseNotesDialog');
+  if (!dialog) return;
+  const title = $('#releaseNotesTitle');
+  const list = $('#releaseNotesList');
+  const empty = $('#releaseNotesEmpty');
+  const version = release && release.version;
+  if (title) title.textContent = version ? 'ALAN KİLİT ' + version + ' yenilikleri' : 'Sürüm yenilikleri';
+  if (list) {
+    list.replaceChildren();
+    for (const change of (release && release.changes) || []) {
+      const item = document.createElement('li');
+      item.textContent = change;
+      list.appendChild(item);
+    }
+  }
+  if (empty) {
+    empty.hidden = !!(release && release.changes && release.changes.length);
+    empty.textContent = message || 'Bu sürüm için yenilik açıklaması henüz eklenmedi.';
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
+async function openCurrentReleaseNotes() {
+  let manifest = releaseManifest;
+  try {
+    manifest = await fetchReleaseManifest();
+  } catch {
+    if (!manifest) {
+      showReleaseNotes(null, 'Yenilik notları alınamadı. İnternet bağlantısını kontrol edip yeniden dene.');
+      return;
+    }
+  }
+  currentRelease = AreaReleaseNotes.notesFor(manifest, APP_VERSION);
+  showReleaseNotes(currentRelease || { version: APP_VERSION, changes: [] });
 }
 
 function hideUpdateBanner() {
@@ -3497,25 +3537,37 @@ async function checkLatestVersion(force = false) {
   lastRemoteVersionCheck = now;
 
   try {
-    const response = await fetch(REMOTE_VERSION_URL + '?check=' + now, {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) return 'unavailable';
-    const data = await response.json();
-    const comparison = compareVersions(APP_VERSION, data && data.version);
+    const manifest = await fetchReleaseManifest();
+    releaseManifest = manifest;
+    currentRelease = AreaReleaseNotes.notesFor(manifest, APP_VERSION);
+    const comparison = compareVersions(APP_VERSION, manifest.version);
     if (comparison === null) return 'unavailable';
     if (comparison < 0) {
-      showRemoteUpdate(data.version);
+      showRemoteUpdate(manifest.version);
       return 'available';
     }
 
     remoteUpdateAvailable = '';
+    remoteRelease = null;
     if (!pendingUpdate) hideUpdateBanner();
+    if (pendingUpdate) showUpdateBanner(pendingUpdate);
+    const requestedVersion = requestedReleaseVersion || new URLSearchParams(location.search).get('update');
+    if (requestedVersion === APP_VERSION) showReleaseNotes(currentRelease || { version: APP_VERSION, changes: [] });
     return 'current';
   } catch {
     return 'unavailable';
   }
+}
+
+async function fetchReleaseManifest() {
+  const response = await fetch(REMOTE_VERSION_URL + '?check=' + Date.now(), {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' }
+  });
+  if (!response.ok) throw new Error('Sürüm bilgisi alınamadı');
+  const manifest = AreaReleaseNotes.normalizeManifest(await response.json());
+  if (!manifest) throw new Error('Sürüm bilgisi geçersiz');
+  return manifest;
 }
 
 function registerServiceWorker() {
@@ -3608,8 +3660,12 @@ function bindUpdate() {
   const updateBtn = $('#updateBtn');
   const dismissBtn = $('#updateDismiss');
   const checkBtn = $('#checkUpdateBtn');
+  const notesBtn = $('#currentReleaseNotesBtn');
 
   if (updateBtn) updateBtn.addEventListener('click', applyUpdate);
+  if (notesBtn) notesBtn.addEventListener('click', openCurrentReleaseNotes);
+  const notesCloseBtn = $('#releaseNotesClose');
+  if (notesCloseBtn) notesCloseBtn.addEventListener('click', () => $('#releaseNotesDialog').close());
 
   if (dismissBtn) {
     dismissBtn.addEventListener('click', () => {
@@ -3624,6 +3680,7 @@ function bindUpdate() {
       if (swRegistration && swRegistration.waiting) {
         updateDismissed = false;
         showUpdateBanner(swRegistration.waiting);
+        checkLatestVersion(true);
         return;
       }
 
@@ -3780,7 +3837,7 @@ function bindEvents() {
   $('#editSave').addEventListener('click', saveEditPlace);
   $('#editUseCurrent').addEventListener('click', setPlaceHere);
 
-  ['#newPlaceName', '#newLockMinutes', '#newBreakMinutes', '#newRadius'].forEach((sel) => {
+  ['#newPlaceName', '#newLockMinutes', '#newBreakMinutes'].forEach((sel) => {
     const el = $(sel);
     if (!el) return;
     el.addEventListener('keydown', (event) => {
@@ -3790,11 +3847,6 @@ function bindEvents() {
     });
   });
   $('#editName').addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    saveEditPlace();
-  });
-  $('#editRadius').addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
     saveEditPlace();
