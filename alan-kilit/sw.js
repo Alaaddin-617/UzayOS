@@ -1,10 +1,11 @@
 /* Alan Kilit — çevrimdışı önbellek */
-const CACHE = 'alan-kilit-v19';
+const CACHE = 'alan-kilit-v20';
 const ASSETS = [
   './',
   './index.html',
   './assets/style.css',
   './assets/geofence.js',
+  './assets/maps-places.js',
   './assets/release-notes.js',
   './assets/app.js',
   './manifest.webmanifest',

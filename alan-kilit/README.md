@@ -19,6 +19,7 @@ Kurulum, cihazına özgü bir mağaza uygulaması indirmek yerine tarayıcının
 - **18 yaş ve üzeri:** her yerde **kilit süresi** ve **mola** vardır. Örneğin 50 dk kilit + 10 dk mola: alana girince kilitlenir, 50 dk sonra mola için açılır, 10 dk sonra hâlâ içerideysen tekrar kilitlenir. Süre 0 ise çıkınca açılır.
 - Bir yer adı yazıp **Kilidi kur** dersin; yeni alanlar ayarlardan da eklenebilir.
 - Yer eklerken cihazın o anki konumu merkeze alınır; var olan bir yeri de **Konumu buraya ayarla** ile güncelleyebilirsin. Kullanıcıdan algılama mesafesi seçmesi istenmez; uygulama dahili bir sınır kullanır (yeni alanlarda yaklaşık 100 m). Eski kayıtlardaki sınırlar veri uyumluluğu için korunur.
+- **Haritada ara** ile Google Maps'te “cami”, “okul” veya başka bir yer arayabilir, listelenen sonucu ya da haritadaki bir noktayı alan olarak kaydedebilirsin. İzin verirsen cihaz konumun da haritada gösterilir; konum izni olmadan haritayı kaydırıp arama yapabilirsin. Google yakın çevrede en fazla 20 sonuç döndürür; “tüm camiler” gibi eksiksiz liste garantisi yoktur.
 - Kaydedince yerin kendi ekranına geçer: radar, konum durumu, **kaç kez kapandığı**, toplam kilit süresi ve son kapanma zamanı.
 - Alanın içine girdiğinde tam ekran **siyah, animasyonsuz** kilit perdesi açılır; çıkınca otomatik kapanır. Bu, gerçek ekran kapanması değildir; web uygulaması ekranı fiziksel olarak kapatamaz.
 - Sağ alttaki **ayarlar** düğmesinden yeni yerler ekleyebilir, mevcut yerin adını ve sürelerini değiştirebilir, sayacı sıfırlayabilir, yedek alabilirsin.
@@ -65,6 +66,12 @@ Aynı web adresinden kullanılan kurulu uygulama, yeni dosyaları açılışta v
 Her sürüm yayınında `version.json` içindeki `version` değerini güncelle ve `releases` listesine bu sürüm için kullanıcıya dönük `changes` maddeleri ekle. Önceki sürümlerin maddelerini listede tut; uygulama kurulduktan sonra kurulu sürümün notlarını bu listeden bulur. Sürüm bilgisi önbelleksiz istenir; yeni notlar eski servis çalışanı önbelleğinde kalmaz.
 
 Güvenlik nedeniyle tarayıcı, indirilen bir klasördeki dosyaların üzerine uygulamanın kendisinin yazmasına izin vermez. Klasör kopyalarında **Yeni sürümü indir** güncel web sayfasını açar; kalıcı kullanım için bu sayfadan PWA olarak yeniden kur. `data/groups.json` gibi yerel verileri silme. Uzaktan sürüm denetimi 1.1.0 ve sonrası sürümlerde bulunur; daha eski kopyalar önce güncel sürümle değiştirilmelidir.
+
+### Google Maps ile yer seçme
+
+Harita özelliği için Google Cloud projesinde **Maps JavaScript API** ve **Places API (New)** etkinleştirilmiş, faturalandırma ayarlanmış bir API anahtarı gerekir. Anahtarı **Ayarlar → Genel → Google Maps API anahtarı** alanına gir; yalnızca o cihazın tarayıcı depolamasında saklanır ve yedek dosyasına eklenmez. Tarayıcı anahtarları istemci tarafında görülebilir olduğundan Google Cloud Console'da web sitesi HTTP yönlendirenleriyle (referrer) sınırla ve yalnız gerekli API'lere izin ver. Anahtarı kaynak koda, ekran görüntüsüne veya herkese açık depoya ekleme. Harita API'si açıkken anahtarı değiştirirsen yeni anahtarın kullanılabilmesi için uygulamayı yenile.
+
+Harita ve arama Google'a bağlanır. Cihazın konumunu haritada görmek için tarayıcı konum izni gerekir; izin vermeden haritayı kaydırıp arama yapabilirsin. Harita API anahtarı, ağ bağlantısı veya Google API'leri kullanılamıyorsa Google harita araması çalışmaz; **Şu anki konuma ekle** gibi mevcut konum akışını kullanabilirsin. Arama merkez çevresindeki en fazla 20 sonucu gösterir; Google Places sonuçları “tüm camiler” gibi eksiksiz liste garantisi vermez. Kaydedilen alan, seçilen Google Places noktasının koordinatını kullanır; Alan Kilit gerçek bina sınırlarını algılamaz.
 
 ### Otomatik konum için HTTPS şart
 

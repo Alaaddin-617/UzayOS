@@ -51,6 +51,7 @@
         <div class="add-row">
           <input class="text-input" id="placeName" type="text" placeholder="cami, okul, kütüphane…"
                  maxlength="40" autocomplete="off" enterkeyhint="done">
+          <button class="ghost btn-map-search" id="homeMapSelect" type="button">Haritada ara</button>
           <button class="primary btn-add" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><circle cx="12" cy="15.5" r="1.4" class="fill"/></svg>
             Kilidi kur
@@ -255,6 +256,7 @@
             </label>
           </div>
           <div class="row-actions">
+            <button class="ghost wide" id="newPlaceMapSelect" type="button">Google Maps'te yer bul</button>
             <button class="primary wide" id="newSave" type="button">Şu anki konuma ekle</button>
           </div>
           <p class="fine" id="newPlaceHint">Yer, kaydettiğinde alınan konuma göre belirlenir. Algılama sınırını uygulama yönetir; GPS hassasiyetine göre giriş veya çıkış gecikebilir.</p>
@@ -279,6 +281,7 @@
           <p class="fine" id="editScheduleHint" hidden>18 yaş altı: süre yerine alandan çıkınca açılır.</p>
           <div class="row-actions">
             <button class="ghost" id="editUseCurrent" type="button">Konumu buraya ayarla</button>
+            <button class="ghost" id="editMapSelect" type="button">Haritadan seç</button>
             <button class="primary" id="editSave" type="button">Kaydet</button>
           </div>
           <div class="row-actions">
@@ -309,6 +312,14 @@
             <input type="checkbox" id="optPowerSave">
             <i aria-hidden="true"></i>
           </label>
+          <label class="field maps-config">
+            <span>Google Maps API anahtarı</span>
+            <input class="text-input" id="googleMapsApiKey" type="password" autocomplete="off" placeholder="Google Cloud'dan alınan tarayıcı anahtarı">
+          </label>
+          <p class="fine">Anahtar yalnızca bu cihazda saklanır ve harita/arama isteği için Google'a gönderilir. Google Cloud'da Maps JavaScript API ve Places API'yi açıp anahtarı HTTP yönlendirenleriyle sınırla; kullanım için faturalandırma gerekebilir.</p>
+          <div class="row-actions">
+            <button class="ghost" id="saveMapsApiKey" type="button">Harita anahtarını kaydet</button>
+          </div>
           <div class="row-actions">
             <button class="ghost" id="notifyBtn" type="button">Bildirim izni</button>
             <button class="ghost" id="demoBtn" type="button">Kilidi 5 sn test et</button>
@@ -538,9 +549,49 @@
     <a class="ghost map-link" id="mapLink" href="#" target="_blank" rel="noopener noreferrer">Haritada aç</a>
   </dialog>
 
+  <dialog class="dialog group-dialog poi-dialog" id="poiPickerDialog" aria-labelledby="poiPickerTitle">
+    <div class="group-hub-head">
+      <div>
+        <p class="eyebrow">GOOGLE MAPS</p>
+        <h3 id="poiPickerTitle">Alan yeri seç</h3>
+      </div>
+      <button class="icon-btn" type="button" data-close-poi-picker aria-label="Kapat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="poi-picker-content">
+      <p class="fine poi-privacy">Harita ve arama Google hizmetlerini kullanır. Konumuna göre arama yapmak istersen cihazının konumu Google Places sorgusuna gönderilir. Konum izni vermeden haritayı kaydırıp arama yapabilirsin.</p>
+      <div class="poi-search-row">
+        <input class="text-input" id="poiSearchQuery" type="search" maxlength="100" placeholder="cami, okul, kütüphane…" autocomplete="off">
+        <button class="primary" id="poiSearchButton" type="button">Ara</button>
+      </div>
+      <label class="field poi-name-field">
+        <span>Alan adı</span>
+        <input class="text-input" id="poiAreaName" type="text" maxlength="40" placeholder="Seçilen yerin adı">
+      </label>
+      <div class="poi-map" id="poiMap" role="application" aria-label="Google Maps alan seçme haritası" hidden></div>
+      <div class="row-actions poi-map-actions">
+        <button class="ghost" id="poiShowMyLocation" type="button">Cihazımı haritada göster</button>
+        <button class="ghost" id="poiSearchMapCenter" type="button">Harita merkezinde ara</button>
+        <button class="ghost" id="poiOpenSettings" type="button" hidden>API anahtarını ayarla</button>
+      </div>
+      <p class="fine poi-status" id="poiPickerStatus" role="status">Google Maps yükleniyor…</p>
+      <div class="poi-results-wrap">
+        <strong id="poiResultsTitle">Yakındaki sonuçlar</strong>
+        <ul class="poi-results" id="poiResults"></ul>
+      </div>
+      <p class="fine poi-selection" id="poiSelection" aria-live="polite">Haritadan bir sonuç seçebilir veya haritaya dokunabilirsin.</p>
+      <div class="dialog-actions">
+        <button class="ghost" type="button" data-close-poi-picker>Vazgeç</button>
+        <button class="primary" id="poiConfirmSelection" type="button" disabled>Alan olarak kaydet</button>
+      </div>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="assets/geofence.js" defer></script>
+  <script src="assets/maps-places.js" defer></script>
   <script src="assets/release-notes.js" defer></script>
   <script src="assets/app.js" defer></script>
 </body>

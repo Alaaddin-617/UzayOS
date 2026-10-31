@@ -6,7 +6,8 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.6';
+const APP_VERSION = '1.1.7';
+const MAPS_API_KEY_STORAGE = 'alanKilit.googleMapsApiKey.v1';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
@@ -20,6 +21,14 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 let state = loadState();
 let locked = state.activeLock ? { ...state.activeLock } : null;
 let lastFix = null;
+let areaPickerSource = '';
+let areaPickerMap = null;
+let areaPickerLibrary = null;
+let areaPickerMarkers = [];
+let areaPickerDeviceMarker = null;
+let areaPickerSelectionMarker = null;
+let areaPickerSelection = null;
+let areaPickerNameEdited = false;
 let geoState = 'idle'; // idle | asking | active | denied | unavailable
 let geoWatch = null;
 let selectedId = null;
@@ -599,6 +608,7 @@ function onFix(position) {
     accuracy: c.accuracy,
     at: Date.now()
   };
+  updateAreaPickerDeviceMarker(lastFix);
   setGeoState('active');
   evaluatePositions();
   evaluateGroup();
@@ -1881,6 +1891,8 @@ function syncSettings() {
   $('#optEmergency').checked = !!state.settings.emergency;
 
   if ($('#optPowerSave')) $('#optPowerSave').checked = state.settings.powerSave !== false;
+  const mapsKeyField = $('#googleMapsApiKey');
+  if (mapsKeyField && document.activeElement !== mapsKeyField) mapsKeyField.value = mapsApiKey();
 
   const profileName = $('#profileName');
   const profilePhone = $('#profilePhone');
@@ -3150,6 +3162,336 @@ async function setPlaceHere() {
   toast('Konum buraya ayarlandı');
 }
 
+function mapsApiKey() {
+  try {
+    return String(localStorage.getItem(MAPS_API_KEY_STORAGE) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function openMapsSettings() {
+  const dialog = $('#poiPickerDialog');
+  if (dialog && dialog.open) dialog.close();
+  openSheet();
+  const field = $('#googleMapsApiKey');
+  if (field) {
+    setTimeout(() => {
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      field.focus();
+    }, 100);
+  }
+}
+
+function saveMapsApiKey() {
+  const key = $('#googleMapsApiKey').value.trim();
+  try {
+    if (key) localStorage.setItem(MAPS_API_KEY_STORAGE, key);
+    else localStorage.removeItem(MAPS_API_KEY_STORAGE);
+  } catch {
+    toast('Harita anahtarı bu cihazda saklanamadı', true);
+    return;
+  }
+  if (key && window.google && window.google.maps && window.google.maps.importLibrary) {
+    toast('Harita anahtarı kaydedildi. Yeni anahtar için uygulamayı yenile.');
+  } else {
+    toast(key ? 'Harita anahtarı bu cihaza kaydedildi' : 'Harita anahtarı silindi');
+  }
+}
+
+function areaPickerStatus(message, isError = false) {
+  const status = $('#poiPickerStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle('error', isError);
+}
+
+function clearAreaPickerMarkers() {
+  areaPickerMarkers.forEach((marker) => marker.setMap(null));
+  areaPickerMarkers = [];
+  areaPickerSelection = null;
+  if (areaPickerSelectionMarker) {
+    areaPickerSelectionMarker.setMap(null);
+    areaPickerSelectionMarker = null;
+  }
+  $('#poiConfirmSelection').disabled = true;
+  $('#poiSelection').textContent = 'Haritadan bir sonuç seçebilir veya haritaya dokunabilirsin.';
+  $('#poiResults').replaceChildren();
+}
+
+function updateAreaPickerDeviceMarker(coords) {
+  if (!areaPickerMap || !areaPickerLibrary || !coords) return;
+  const position = { lat: coords.lat, lng: coords.lng };
+  if (areaPickerDeviceMarker) {
+    areaPickerDeviceMarker.setPosition(position);
+    areaPickerDeviceMarker.setMap(areaPickerMap);
+  } else {
+    areaPickerDeviceMarker = new areaPickerLibrary.Marker({
+      map: areaPickerMap,
+      position,
+      title: 'Cihazının konumu',
+      label: 'Sen',
+      zIndex: 1000
+    });
+  }
+}
+
+function selectAreaPickerLocation(place) {
+  const location = AreaMapsPlaces.normalizeCoordinates(place && place.location);
+  if (!location) {
+    areaPickerStatus('Seçilen konum geçerli değil. Başka bir yer seç.', true);
+    return;
+  }
+
+  areaPickerSelection = {
+    name: String((place && place.name) || 'Haritada seçilen yer').slice(0, 120),
+    address: String((place && place.address) || ''),
+    location
+  };
+  if (areaPickerSelectionMarker) areaPickerSelectionMarker.setMap(null);
+  areaPickerSelectionMarker = new areaPickerLibrary.Marker({
+    map: areaPickerMap,
+    position: location,
+    title: areaPickerSelection.name,
+    label: 'Seç'
+  });
+
+  const nameInput = $('#poiAreaName');
+  if (!areaPickerNameEdited && nameInput) nameInput.value = areaPickerSelection.name.slice(0, 40);
+  const coordinates = location.lat.toFixed(5) + ', ' + location.lng.toFixed(5);
+  $('#poiSelection').textContent = areaPickerSelection.name +
+    (areaPickerSelection.address ? ' · ' + areaPickerSelection.address : '') + ' · ' + coordinates;
+  $('#poiConfirmSelection').disabled = false;
+  areaPickerStatus('Konum seçildi. Alan olarak kaydetmeden önce seçimini kontrol et.');
+}
+
+function renderAreaPickerResults(places) {
+  const list = $('#poiResults');
+  list.replaceChildren();
+  places.forEach((place, index) => {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    const name = document.createElement('strong');
+    const address = document.createElement('small');
+    button.type = 'button';
+    button.className = 'poi-result';
+    button.dataset.index = String(index);
+    name.textContent = place.name;
+    address.textContent = place.address || place.location.lat.toFixed(5) + ', ' + place.location.lng.toFixed(5);
+    button.append(name, address);
+    button.addEventListener('click', () => {
+      $$('.poi-result').forEach((row) => row.classList.remove('is-selected'));
+      button.classList.add('is-selected');
+      selectAreaPickerLocation(place);
+      areaPickerMap.panTo(place.location);
+    });
+    item.appendChild(button);
+    list.appendChild(item);
+
+    const marker = new areaPickerLibrary.Marker({
+      map: areaPickerMap,
+      position: place.location,
+      title: place.name
+    });
+    marker.addListener('click', () => {
+      $$('.poi-result').forEach((row) => row.classList.remove('is-selected'));
+      button.classList.add('is-selected');
+      selectAreaPickerLocation(place);
+      areaPickerMap.panTo(place.location);
+    });
+    areaPickerMarkers.push(marker);
+  });
+}
+
+async function searchGooglePlaces() {
+  if (!areaPickerMap || !areaPickerLibrary) return;
+  const query = AreaMapsPlaces.normalizeQuery($('#poiSearchQuery').value);
+  if (!query) {
+    areaPickerStatus('Aramak için cami, okul veya başka bir yer adı yaz.', true);
+    $('#poiSearchQuery').focus();
+    return;
+  }
+
+  clearAreaPickerMarkers();
+  areaPickerStatus('Google Maps yakın sonuçları arıyor…');
+  $('#poiResultsTitle').textContent = 'Yakındaki sonuçlar';
+  try {
+    const center = areaPickerMap.getCenter();
+    const response = await areaPickerLibrary.Place.searchByText({
+      textQuery: query,
+      fields: ['id', 'displayName', 'formattedAddress', 'location'],
+      locationBias: {
+        center,
+        radius: AreaMapsPlaces.SEARCH_BIAS_RADIUS_METERS
+      },
+      maxResultCount: AreaMapsPlaces.MAX_RESULTS
+    });
+    const places = (response.places || [])
+      .map((place) => AreaMapsPlaces.normalizeGooglePlace(place))
+      .filter(Boolean);
+    renderAreaPickerResults(places);
+    if (places.length) {
+      areaPickerStatus('En fazla ' + AreaMapsPlaces.MAX_RESULTS +
+        ' yakın sonuç gösteriliyor. Daha uzak yerler için haritayı taşıyıp yeniden ara.');
+    } else {
+      areaPickerStatus('Bu harita çevresinde sonuç bulunamadı. Haritayı taşıyıp tekrar ara.', true);
+    }
+  } catch (error) {
+    areaPickerStatus('Google Maps araması başarısız oldu. API anahtarı, Places API ve faturalandırma ayarlarını kontrol et.', true);
+    console.error('[Alan Kilit] Google Places araması başarısız:', error);
+  }
+}
+
+async function centerAreaPickerOnDevice() {
+  const fix = await ensurePosition(15000, true);
+  if (!fix) {
+    areaPickerStatus('Cihaz konumu alınamadı. Konum iznini kontrol et veya haritayı elle taşı.', true);
+    return;
+  }
+  if (!areaPickerMap) return;
+  updateAreaPickerDeviceMarker(fix);
+  areaPickerMap.setCenter({ lat: fix.lat, lng: fix.lng });
+  areaPickerMap.setZoom(15);
+  areaPickerStatus('Cihazının konumu haritada gösteriliyor. Arama yapmak için “Harita merkezinde ara”ya dokun.');
+}
+
+async function initializeAreaPickerMap() {
+  const key = mapsApiKey();
+  const mapElement = $('#poiMap');
+  const openSettings = $('#poiOpenSettings');
+  if (!key) {
+    mapElement.hidden = true;
+    openSettings.hidden = false;
+    $('#poiSearchButton').disabled = true;
+    $('#poiShowMyLocation').disabled = true;
+    $('#poiSearchMapCenter').disabled = true;
+    areaPickerStatus('Google Maps anahtarı ayarlanmamış. Ayarlar > Genel bölümünden anahtar ekle; istersen mevcut “Şu anki konuma ekle” seçeneğini kullan.', true);
+    return;
+  }
+
+  openSettings.hidden = true;
+  $('#poiSearchButton').disabled = true;
+  $('#poiShowMyLocation').disabled = true;
+  $('#poiSearchMapCenter').disabled = true;
+  mapElement.hidden = false;
+  areaPickerStatus('Google Maps yükleniyor…');
+  try {
+    areaPickerLibrary = await AreaMapsPlaces.loadGoogleMaps(key);
+    if (!$('#poiPickerDialog').open) return;
+    const savedPlace = areaPickerSource === 'edit' ? getPlace(selectedId) : null;
+    const center = savedPlace && savedPlace.lat != null
+      ? savedPlace
+      : (lastFix || AreaMapsPlaces.DEFAULT_CENTER);
+    areaPickerMap = new areaPickerLibrary.Map(mapElement, {
+      center: { lat: center.lat, lng: center.lng },
+      zoom: savedPlace && savedPlace.lat != null ? 15 : (lastFix ? 14 : 6),
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      clickableIcons: false
+    });
+    areaPickerMap.addListener('click', (event) => {
+      const location = AreaMapsPlaces.normalizeCoordinates(event.latLng);
+      if (location) {
+        $$('.poi-result').forEach((row) => row.classList.remove('is-selected'));
+        selectAreaPickerLocation({ name: 'Haritada seçilen yer', location });
+      }
+    });
+    if (lastFix) updateAreaPickerDeviceMarker(lastFix);
+    $('#poiSearchButton').disabled = false;
+    $('#poiShowMyLocation').disabled = false;
+    $('#poiSearchMapCenter').disabled = false;
+    areaPickerStatus(lastFix
+      ? '“Sen” işareti cihaz konumunu gösterir. Haritayı taşıyıp yakındaki yerleri ara.'
+      : 'Türkiye merkezinden başlandı. İstersen izin verip konumunu göster veya haritayı taşıyıp ara.');
+    if ($('#poiSearchQuery').value.trim()) await searchGooglePlaces();
+  } catch (error) {
+    areaPickerMap = null;
+    mapElement.hidden = true;
+    areaPickerStatus(error.message || 'Google Maps açılamadı. API anahtarı ve internet bağlantısını kontrol et.', true);
+  }
+}
+
+function openAreaPicker(source) {
+  areaPickerSource = source;
+  areaPickerMap = null;
+  areaPickerLibrary = null;
+  areaPickerDeviceMarker = null;
+  areaPickerNameEdited = false;
+  clearAreaPickerMarkers();
+
+  const search = $('#poiSearchQuery');
+  const name = $('#poiAreaName');
+  const areaNameField = $('.poi-name-field');
+  if (source === 'quick') search.value = $('#placeName').value.trim();
+  else if (source === 'new') search.value = $('#newPlaceName').value.trim();
+  else {
+    const place = getPlace(selectedId);
+    search.value = place ? place.name : '';
+  }
+  name.value = '';
+  if (source === 'edit') {
+    areaNameField.hidden = true;
+    $('#poiConfirmSelection').textContent = 'Bu konumu kaydet';
+  } else {
+    areaNameField.hidden = false;
+    $('#poiConfirmSelection').textContent = 'Alan olarak kaydet';
+  }
+
+  const dialog = $('#poiPickerDialog');
+  if (!dialog.open) dialog.showModal();
+  initializeAreaPickerMap();
+}
+
+function confirmAreaPickerSelection() {
+  if (!areaPickerSelection) return;
+  const coords = areaPickerSelection.location;
+
+  if (areaPickerSource === 'edit') {
+    const place = getPlace(selectedId);
+    if (!place) return;
+    place.lat = coords.lat;
+    place.lng = coords.lng;
+    place.inside = false;
+    place.knownInside = false;
+    place.breakUntil = 0;
+    if (lastFix) evaluatePositions();
+    save();
+    renderAll();
+    $('#poiPickerDialog').close();
+    toast('Alan konumu güncellendi');
+    return;
+  }
+
+  const name = ($('#poiAreaName').value.trim() || areaPickerSelection.name).replace(/\s+/g, ' ');
+  if (!name) {
+    areaPickerStatus('Alan adı gerekli.', true);
+    $('#poiAreaName').focus();
+    return;
+  }
+  if (state.places.some((place) => norm(place.name) === norm(name))) {
+    areaPickerStatus('Bu isimde bir alan zaten var. Başka bir ad seç.', true);
+    $('#poiAreaName').focus();
+    return;
+  }
+
+  const options = {};
+  if (areaPickerSource === 'new') {
+    const defaults = roleDefaults(state.role);
+    options.lockMinutes = minutesValue($('#newLockMinutes').value, defaults.lockMinutes, 240);
+    options.breakMinutes = minutesValue($('#newBreakMinutes').value, defaults.breakMinutes, 60);
+  }
+  const place = createPlace(name.slice(0, 40), coords, options);
+  if (areaPickerSource === 'quick') $('#placeName').value = '';
+  if (areaPickerSource === 'new') {
+    $('#newPlaceName').value = '';
+    closeSheet();
+  }
+  $('#poiPickerDialog').close();
+  openPlace(place.id);
+  toast('Alan kaydedildi: ' + place.name);
+}
+
 async function resetPlaceCounter() {
   const p = getPlace(selectedId);
   if (!p) return;
@@ -3209,7 +3551,10 @@ async function resetEverything() {
   stopJoinPolling();
   state = defaultState();
 
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(MAPS_API_KEY_STORAGE);
+  } catch {}
   save();
 
   closeSheet();
@@ -3737,6 +4082,24 @@ function tick() {
 
 function bindEvents() {
   $('#addForm').addEventListener('submit', onAddSubmit);
+  $('#homeMapSelect').addEventListener('click', () => openAreaPicker('quick'));
+  $('#newPlaceMapSelect').addEventListener('click', () => openAreaPicker('new'));
+  $('#editMapSelect').addEventListener('click', () => openAreaPicker('edit'));
+  $('#poiSearchButton').addEventListener('click', searchGooglePlaces);
+  $('#poiSearchMapCenter').addEventListener('click', searchGooglePlaces);
+  $('#poiShowMyLocation').addEventListener('click', centerAreaPickerOnDevice);
+  $('#poiConfirmSelection').addEventListener('click', confirmAreaPickerSelection);
+  $('#poiOpenSettings').addEventListener('click', openMapsSettings);
+  $('#saveMapsApiKey').addEventListener('click', saveMapsApiKey);
+  $('#poiAreaName').addEventListener('input', () => { areaPickerNameEdited = true; });
+  $('#poiSearchQuery').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    searchGooglePlaces();
+  });
+  $$('[data-close-poi-picker]').forEach((button) => {
+    button.addEventListener('click', () => $('#poiPickerDialog').close());
+  });
 
   $('#backBtn').addEventListener('click', goHome);
   $('#backLink').addEventListener('click', goHome);

@@ -1,5 +1,5 @@
 {
-  "version": "1.1.6",
+  "version": "1.1.7",
   "releases": [
     {
       "version": "1.1.4",
@@ -20,6 +20,13 @@
       "changes": [
         "Uygulama kapalıyken web/PWA sürümünde konum takibi yapılamadığı daha açık anlatılıyor.",
         "Uygulama yeniden açıldığında konum alınarak alan durumu yeniden değerlendiriliyor."
+      ]
+    },
+    {
+      "version": "1.1.7",
+      "changes": [
+        "Google Maps ile yakın cami, okul ve diğer yerleri arayıp seçerek alan olarak kaydedebilirsin.",
+        "İzin verirsen haritada cihaz konumunu görebilir, izin yoksa haritayı elle taşıyabilirsin."
       ]
     }
   ]
