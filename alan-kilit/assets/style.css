@@ -283,6 +283,7 @@ svg .fill, svg.fill { fill: currentColor; stroke: none; }
   display: flex;
   gap: 10px;
 }
+.btn-map-search { flex: 0 0 auto; white-space: nowrap; }
 
 .text-input {
   width: 100%;
@@ -1337,7 +1338,7 @@ input[type="range"] {
   .hero { padding-top: 22px; }
   .add-card { padding: 17px; }
   .add-row { flex-direction: column; }
-  .btn-add { width: 100%; }
+  .btn-add, .btn-map-search { width: 100%; }
   .place-head { gap: 16px; }
   .detail-actions { grid-template-columns: 1fr; }
   .install-banner { flex-direction: column; align-items: stretch; }
@@ -1609,6 +1610,35 @@ input[type="range"] {
   margin: 12px 20px calc(18px + env(safe-area-inset-bottom));
   text-decoration: none;
 }
+.poi-dialog { width: min(calc(100% - 24px), 760px); max-width: 760px; padding: 0; }
+.poi-picker-content { padding: 0 20px 20px; }
+.poi-privacy { margin-top: 0 !important; }
+.poi-search-row { display: flex; gap: 9px; }
+.poi-search-row .text-input { flex: 1; }
+.poi-search-row button { flex: 0 0 auto; }
+.poi-name-field { margin-top: 12px; }
+.poi-name-field .text-input { height: 46px; }
+.poi-map {
+  width: 100%;
+  height: min(42dvh, 360px);
+  min-height: 220px;
+  margin-top: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: #0a111c;
+}
+.poi-map-actions { margin-top: 8px; }
+.poi-map-actions button { min-height: 38px; padding: 8px 11px; font-size: 11.5px; }
+.poi-status { margin-top: 8px !important; }
+.poi-results-wrap { margin-top: 12px; }
+.poi-results-wrap > strong { display: block; margin-bottom: 6px; font-size: 12px; }
+.poi-results { max-height: 150px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.poi-result { display: grid; width: 100%; gap: 2px; padding: 9px 10px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; }
+.poi-result:hover, .poi-result.is-selected { background: rgba(94, 234, 212, 0.08); }
+.poi-result strong { font-size: 12px; }
+.poi-result small { color: var(--muted); font-size: 10.5px; }
+.poi-selection { min-height: 20px; margin-top: 10px !important; }
+.poi-dialog .dialog-actions { margin-top: 12px; }
 
 @media (max-width: 560px) {
   .group-head { align-items: flex-start; }
