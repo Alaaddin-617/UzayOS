@@ -6,7 +6,7 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.7';
+const APP_VERSION = '1.1.8';
 const MAPS_API_KEY_STORAGE = 'alanKilit.googleMapsApiKey.v1';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
@@ -4007,22 +4007,6 @@ function checkForUpdates(force = false) {
   return swRegistration.update().catch(() => {});
 }
 
-function compareVersions(left, right) {
-  const parse = (value) => {
-    if (!/^\d+(?:\.\d+){1,3}$/.test(String(value || ''))) return null;
-    return String(value).split('.').map(Number);
-  };
-  const a = parse(left);
-  const b = parse(right);
-  if (!a || !b) return null;
-
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const difference = (a[i] || 0) - (b[i] || 0);
-    if (difference) return Math.sign(difference);
-  }
-  return 0;
-}
-
 async function checkLatestVersion(force = false) {
   const now = Date.now();
   if (!force && now - lastRemoteVersionCheck < 5 * 60 * 1000) {
@@ -4034,7 +4018,7 @@ async function checkLatestVersion(force = false) {
     const manifest = await fetchReleaseManifest();
     releaseManifest = manifest;
     currentRelease = AreaReleaseNotes.notesFor(manifest, APP_VERSION);
-    const comparison = compareVersions(APP_VERSION, manifest.version);
+    const comparison = AreaReleaseNotes.compareVersions(APP_VERSION, manifest.version);
     if (comparison === null) return 'unavailable';
     if (comparison < 0) {
       showRemoteUpdate(manifest.version);
