@@ -12,10 +12,10 @@
     return Promise.all([
       root.google.maps.importLibrary('maps'),
       root.google.maps.importLibrary('places'),
-      root.google.maps.importLibrary('marker')
-    ]).then(([maps, places, marker]) => {
+      root.google.maps.importLibrary('core')
+    ]).then(([maps, places, core]) => {
       loadedMapsKey = key;
-      return { ...maps, ...places, ...marker };
+      return { ...maps, ...places, ...core };
     });
   }
 
@@ -50,6 +50,73 @@
 
   function normalizeQuery(value) {
     return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+  }
+
+  function normalizeNearbyPlaces(places, existingPlaceIds = []) {
+    const existing = new Set((existingPlaceIds || []).map((id) => String(id)));
+    const seen = new Set();
+    const normalized = [];
+    for (const rawPlace of Array.isArray(places) ? places : []) {
+      const place = normalizeGooglePlace(rawPlace);
+      if (!place || seen.has(place.id) || existing.has(place.id)) continue;
+      seen.add(place.id);
+      normalized.push(place);
+      if (normalized.length >= MAX_RESULTS) break;
+    }
+    return normalized;
+  }
+
+  function resolveUniqueExactMatch(query, places) {
+    const normalizeName = (value) => String(value || '')
+      .trim()
+      .toLocaleLowerCase('tr-TR')
+      .replace(/ı/g, 'i')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const target = normalizeName(query);
+    if (!target || !Array.isArray(places)) return null;
+    const exact = places.filter((place) => normalizeName(place && place.name) === target);
+    return exact.length === 1 ? exact[0] : null;
+  }
+
+  function updateSavedPlaceCoordinates(savedPlace, googlePlace) {
+    const location = normalizeCoordinates(googlePlace && googlePlace.location);
+    if (!savedPlace || !googlePlace || !googlePlace.id || !location) {
+      throw new Error('Google Places sonucu kayıtlı alana bağlanamadı');
+    }
+    return {
+      ...savedPlace,
+      lat: location.lat,
+      lng: location.lng,
+      googlePlaceId: String(googlePlace.id).slice(0, 200),
+      inside: false,
+      knownInside: false,
+      breakUntil: 0
+    };
+  }
+
+  function createSearchBounds(Bounds, center, radius = SEARCH_BIAS_RADIUS_METERS) {
+    const location = normalizeCoordinates(center);
+    const meters = Number(radius);
+    if (typeof Bounds !== 'function' || !location || !Number.isFinite(meters) || meters <= 0) {
+      throw new Error('Google Maps arama sınırı oluşturulamadı');
+    }
+    const latDelta = meters / 111320;
+    const cosLatitude = Math.max(0.01, Math.abs(Math.cos(location.lat * Math.PI / 180)));
+    const lngDelta = Math.min(180, meters / (111320 * cosLatitude));
+    return new Bounds(
+      {
+        lat: Math.max(-90, location.lat - latDelta),
+        lng: Math.max(-180, location.lng - lngDelta)
+      },
+      {
+        lat: Math.min(90, location.lat + latDelta),
+        lng: Math.min(180, location.lng + lngDelta)
+      }
+    );
   }
 
   function loadGoogleMaps(apiKey) {
@@ -116,6 +183,10 @@
     normalizeCoordinates,
     normalizeQuery,
     normalizeGooglePlace,
+    normalizeNearbyPlaces,
+    resolveUniqueExactMatch,
+    updateSavedPlaceCoordinates,
+    createSearchBounds,
     loadGoogleMaps
   });
   root.AreaMapsPlaces = api;

@@ -11,7 +11,7 @@ const MAPS_API_KEY_STORAGE = 'alanKilit.googleMapsApiKey.v1';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
-const { DEFAULT_RADIUS, storedRadius } = window.AreaGeofence;
+const { DEFAULT_RADIUS, storedRadius, classifyLocation } = window.AreaGeofence;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -29,6 +29,7 @@ let areaPickerDeviceMarker = null;
 let areaPickerSelectionMarker = null;
 let areaPickerSelection = null;
 let areaPickerNameEdited = false;
+let pendingPlaceResolution = null;
 let geoState = 'idle'; // idle | asking | active | denied | unavailable
 let geoWatch = null;
 let selectedId = null;
@@ -337,6 +338,7 @@ function normalizePlace(p, index) {
     name: (p && p.name ? String(p.name) : 'Yer').slice(0, 40),
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
+    googlePlaceId: p && p.googlePlaceId ? String(p.googlePlaceId).slice(0, 200) : '',
     radius: storedRadius(p && p.radius),
     color: (p && p.color) || PALETTE[index % PALETTE.length],
     count: Math.max(0, Math.floor(Number(p && p.count) || 0)),
@@ -732,8 +734,12 @@ function evaluatePositions() {
     const d = distanceM(lastFix, p);
     p.distance = d;
 
-    const isInside = d <= p.radius;
-    const isClearlyOutside = d > p.radius + hysteresis;
+    const locationState = p.googlePlaceId
+      ? classifyLocation(d, lastFix.accuracy, p.radius, hysteresis)
+      : (d <= p.radius ? 'inside' : (d > p.radius + hysteresis ? 'outside' : 'uncertain'));
+    if (locationState === 'uncertain') continue;
+    const isInside = locationState === 'inside';
+    const isClearlyOutside = locationState === 'outside';
 
     if (isInside) {
       if (!p.inside) {
@@ -767,7 +773,10 @@ function evaluatePositions() {
   if (!locked) {
     for (const p of places) {
       const d = p.distance != null ? p.distance : distanceM(lastFix, p);
-      if (d <= p.radius && !p.knownInside) {
+      const locationState = p.googlePlaceId
+        ? classifyLocation(d, lastFix.accuracy, p.radius, 0)
+        : (d <= p.radius ? 'inside' : 'outside');
+      if (locationState === 'inside' && !p.knownInside) {
         lockPlace(p);
         changed = true;
         break;
@@ -1779,44 +1788,178 @@ function updatePlaceLive() {
 
 async function onAddSubmit(event) {
   event.preventDefault();
+  await addNearbyGooglePlaces(
+    $('#placeName').value,
+    'home',
+    event.submitter || $('#addForm').querySelector('button[type="submit"]')
+  );
+}
+
+function uniqueGooglePlaceName(baseName) {
+  const base = String(baseName || 'Yakındaki yer').trim().slice(0, 40) || 'Yakındaki yer';
+  let name = base;
+  let suffix = 2;
+  while (state.places.some((place) => norm(place.name) === norm(name))) {
+    const ending = ' (' + suffix++ + ')';
+    name = base.slice(0, 40 - ending.length) + ending;
+  }
+  return name;
+}
+
+async function addNearbyGooglePlaces(value, source, button = null, targetId = null) {
   if (busy) return;
-
-  const input = $('#placeName');
-  const name = input.value.trim().replace(/\s+/g, ' ');
-  const button = event.target.querySelector('button[type="submit"]');
-
-  if (!name) {
+  const query = AreaMapsPlaces.normalizeQuery(value);
+  if (!query) {
+    toast('Kaydetmek istediğin belirli yerin adını veya adresini yaz.', true);
+    const input = source === 'home' ? $('#placeName')
+      : (source === 'existing' ? $('#editName') : $('#newPlaceName'));
     input.focus();
-    toast('Önce bir yer adı yaz', true);
     return;
   }
 
-  const existing = state.places.find((p) => norm(p.name) === norm(name));
-  if (existing) {
-    input.value = '';
-    openPlace(existing.id);
-    toast('“' + existing.name + '” zaten kayıtlı');
+  const key = mapsApiKey();
+  if (!key) {
+    toast('Otomatik yer bulma için Google Maps API anahtarını Ayarlar > Genel bölümüne ekle.', true);
     return;
   }
+
+  const consent = await askConfirm({
+    title: 'Bu yer Google Maps’te çözülsün mü?',
+    text: 'Alan Kilit yazdığın kayıtlı yer adını Google Places ile çözecek. Bunun için cihazının güncel GPS koordinatı Google’a gönderilecek ve yakındaki eşleşmeler aranacak. En fazla 20 aday bulunabilir; sonuçlar bina sınırlarını garanti etmez. Devam ederek bu aramaya izin veriyor musun?',
+    yes: 'Konumumu Google’a gönder'
+  });
+  if (!consent) return;
 
   busy = true;
-  setBusy(button, true, 'Konum alınıyor…');
-
+  setBusy(button, true, 'Yer aranıyor…');
   try {
+    const previousFix = lastFix;
     const fix = await ensurePosition(20000, true);
-    if (!fix) {
-      toast('Konum alınamadı. Konum iznini kontrol et.', true);
+    if (!fix || fix === previousFix) {
+      toast('Konum alınamadı. Konum iznini kontrol et; Google araması yapılmadı.', true);
       return;
     }
 
-    const place = createPlace(name, fix);
-    input.value = '';
-    openPlace(place.id);
-    toast('Kilit kuruldu: ' + place.name);
+    const library = await AreaMapsPlaces.loadGoogleMaps(key);
+    const locationRestriction = AreaMapsPlaces.createSearchBounds(
+      library.LatLngBounds,
+      fix,
+      AreaMapsPlaces.SEARCH_BIAS_RADIUS_METERS
+    );
+    const response = await library.Place.searchByText({
+      textQuery: query,
+      fields: ['id', 'displayName', 'formattedAddress', 'location'],
+      locationRestriction,
+      maxResultCount: AreaMapsPlaces.MAX_RESULTS
+    });
+    const savedTarget = targetId
+      ? getPlace(targetId)
+      : state.places.find((place) => norm(place.name) === norm(query));
+    const resolvedTargetId = savedTarget ? savedTarget.id : null;
+    const nearbyPlaces = AreaMapsPlaces.normalizeNearbyPlaces(
+      response.places,
+      state.places
+        .filter((place) => place.id !== resolvedTargetId)
+        .map((place) => place.googlePlaceId)
+        .filter(Boolean)
+    );
+    const places = nearbyPlaces.filter((place) =>
+      distanceM(fix, place.location) <= AreaMapsPlaces.SEARCH_BIAS_RADIUS_METERS
+    );
+    if (!places.length) {
+      toast('Bu isimle yakında eşleşme bulunamadı. Yer adını veya adresini kontrol et.', true);
+      return;
+    }
+
+    const defaults = roleDefaults(state.role);
+    const options = source === 'settings'
+      ? {
+          lockMinutes: minutesValue($('#newLockMinutes').value, defaults.lockMinutes, 240),
+          breakMinutes: minutesValue($('#newBreakMinutes').value, defaults.breakMinutes, 60)
+        }
+      : {};
+    const pending = { query, source, fix, options, targetId: resolvedTargetId };
+    const exactMatch = AreaMapsPlaces.resolveUniqueExactMatch(query, places);
+    if (exactMatch) {
+      saveResolvedGooglePlace(exactMatch, pending);
+      return;
+    }
+    showPlaceResolutionCandidates(places, pending);
+  } catch (error) {
+    console.error('[Alan Kilit] Google Places konum çözümlemesi başarısız:', error);
+    toast('Yer çözümlenemedi. İnternet, API anahtarı, Maps JavaScript API, Places API ve faturalandırma ayarlarını kontrol et.', true);
   } finally {
     busy = false;
     setBusy(button, false);
   }
+}
+
+function showPlaceResolutionCandidates(places, pending) {
+  const dialog = $('#placeResolveDialog');
+  const list = $('#placeResolveResults');
+  list.replaceChildren();
+  pendingPlaceResolution = { ...pending, places };
+  $('#placeResolveQuery').textContent =
+    '“' + pending.query + '” için kesin tek eşleşme bulunamadı. Doğru kaydı adresinden seç:';
+
+  places.forEach((place, index) => {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    const name = document.createElement('strong');
+    const address = document.createElement('small');
+    button.type = 'button';
+    button.className = 'poi-result';
+    button.dataset.index = String(index);
+    name.textContent = place.name;
+    address.textContent = place.address || 'Adres bilgisi yok';
+    button.append(name, address);
+    button.addEventListener('click', () => {
+      const current = pendingPlaceResolution;
+      if (!current) return;
+      pendingPlaceResolution = null;
+      dialog.close();
+      saveResolvedGooglePlace(place, current);
+    });
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+  dialog.showModal();
+}
+
+function saveResolvedGooglePlace(googlePlace, pending) {
+  const existing = state.places.find((place) =>
+    place.id === pending.targetId ||
+    (place.googlePlaceId && place.googlePlaceId === googlePlace.id) ||
+    norm(place.name) === norm(pending.query)
+  );
+  const place = existing || createPlace(
+    uniqueGooglePlaceName(googlePlace.name),
+    googlePlace.location,
+    { ...pending.options, googlePlaceId: googlePlace.id }
+  );
+  if (existing) {
+    Object.assign(existing, AreaMapsPlaces.updateSavedPlaceCoordinates(existing, googlePlace));
+  }
+
+  evaluatePositions();
+  save();
+  if (pending.source === 'home') $('#placeName').value = '';
+  if (pending.source === 'settings') {
+    $('#newPlaceName').value = '';
+    closeSheet();
+  } else if (pending.source === 'existing') {
+    closeSheet();
+  }
+  openPlace(place.id);
+  toast(existing
+    ? 'Kayıtlı alanın Google Maps konumu güncellendi: ' + place.name
+    : 'Google Maps yeri kaydedildi: ' + place.name);
+}
+
+function resolveSelectedPlaceWithGoogleMaps() {
+  const place = getPlace(selectedId);
+  if (!place) return;
+  addNearbyGooglePlaces(place.name, 'existing', $('#editResolveWithMaps'), place.id);
 }
 
 function setBusy(button, isBusy, label) {
@@ -1841,6 +1984,7 @@ function createPlace(name, coords, options = {}) {
     name: name.slice(0, 40),
     lat: Number(coords.lat),
     lng: Number(coords.lng),
+    googlePlaceId: options.googlePlaceId ? String(options.googlePlaceId).slice(0, 200) : '',
     radius: DEFAULT_RADIUS,
     color: PALETTE[state.places.length % PALETTE.length],
     count: 0,
@@ -1855,7 +1999,7 @@ function createPlace(name, coords, options = {}) {
     createdAt: Date.now()
   };
 
-  if (lastFix && Number.isFinite(place.lat) && Number.isFinite(place.lng)) {
+  if (!place.googlePlaceId && lastFix && Number.isFinite(place.lat) && Number.isFinite(place.lng)) {
     const d = distanceM(lastFix, place);
     place.inside = d <= place.radius;
     place.knownInside = place.inside;
@@ -3246,6 +3390,7 @@ function selectAreaPickerLocation(place) {
   areaPickerSelection = {
     name: String((place && place.name) || 'Haritada seçilen yer').slice(0, 120),
     address: String((place && place.address) || ''),
+    googlePlaceId: place && place.googlePlaceId ? String(place.googlePlaceId) : '',
     location
   };
   if (areaPickerSelectionMarker) areaPickerSelectionMarker.setMap(null);
@@ -3282,7 +3427,7 @@ function renderAreaPickerResults(places) {
     button.addEventListener('click', () => {
       $$('.poi-result').forEach((row) => row.classList.remove('is-selected'));
       button.classList.add('is-selected');
-      selectAreaPickerLocation(place);
+      selectAreaPickerLocation({ ...place, googlePlaceId: place.id });
       areaPickerMap.panTo(place.location);
     });
     item.appendChild(button);
@@ -3296,7 +3441,7 @@ function renderAreaPickerResults(places) {
     marker.addListener('click', () => {
       $$('.poi-result').forEach((row) => row.classList.remove('is-selected'));
       button.classList.add('is-selected');
-      selectAreaPickerLocation(place);
+      selectAreaPickerLocation({ ...place, googlePlaceId: place.id });
       areaPickerMap.panTo(place.location);
     });
     areaPickerMarkers.push(marker);
@@ -3452,6 +3597,7 @@ function confirmAreaPickerSelection() {
     if (!place) return;
     place.lat = coords.lat;
     place.lng = coords.lng;
+    place.googlePlaceId = areaPickerSelection.googlePlaceId;
     place.inside = false;
     place.knownInside = false;
     place.breakUntil = 0;
@@ -3481,7 +3627,10 @@ function confirmAreaPickerSelection() {
     options.lockMinutes = minutesValue($('#newLockMinutes').value, defaults.lockMinutes, 240);
     options.breakMinutes = minutesValue($('#newBreakMinutes').value, defaults.breakMinutes, 60);
   }
-  const place = createPlace(name.slice(0, 40), coords, options);
+  const place = createPlace(name.slice(0, 40), coords, {
+    ...options,
+    googlePlaceId: areaPickerSelection.googlePlaceId
+  });
   if (areaPickerSource === 'quick') $('#placeName').value = '';
   if (areaPickerSource === 'new') {
     $('#newPlaceName').value = '';
@@ -4082,23 +4231,17 @@ function tick() {
 
 function bindEvents() {
   $('#addForm').addEventListener('submit', onAddSubmit);
-  $('#homeMapSelect').addEventListener('click', () => openAreaPicker('quick'));
-  $('#newPlaceMapSelect').addEventListener('click', () => openAreaPicker('new'));
-  $('#editMapSelect').addEventListener('click', () => openAreaPicker('edit'));
-  $('#poiSearchButton').addEventListener('click', searchGooglePlaces);
-  $('#poiSearchMapCenter').addEventListener('click', searchGooglePlaces);
-  $('#poiShowMyLocation').addEventListener('click', centerAreaPickerOnDevice);
-  $('#poiConfirmSelection').addEventListener('click', confirmAreaPickerSelection);
-  $('#poiOpenSettings').addEventListener('click', openMapsSettings);
-  $('#saveMapsApiKey').addEventListener('click', saveMapsApiKey);
-  $('#poiAreaName').addEventListener('input', () => { areaPickerNameEdited = true; });
-  $('#poiSearchQuery').addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    searchGooglePlaces();
+  $('#newPlaceAutoFind').addEventListener('click', () => {
+    addNearbyGooglePlaces($('#newPlaceName').value, 'settings', $('#newPlaceAutoFind'));
   });
-  $$('[data-close-poi-picker]').forEach((button) => {
-    button.addEventListener('click', () => $('#poiPickerDialog').close());
+  $('#editResolveWithMaps').addEventListener('click', resolveSelectedPlaceWithGoogleMaps);
+  $('#saveMapsApiKey').addEventListener('click', saveMapsApiKey);
+  $('#placeResolveCancel').addEventListener('click', () => {
+    pendingPlaceResolution = null;
+    $('#placeResolveDialog').close();
+  });
+  $('#placeResolveDialog').addEventListener('close', () => {
+    pendingPlaceResolution = null;
   });
 
   $('#backBtn').addEventListener('click', goHome);
