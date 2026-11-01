@@ -13,7 +13,21 @@
     return Math.min(MAX_RADIUS, Math.max(MIN_RADIUS, radius));
   }
 
-  const geofence = Object.freeze({ DEFAULT_RADIUS, storedRadius });
+  function classifyLocation(distance, accuracy, radius, hysteresis = 0) {
+    const d = Number(distance);
+    const a = Number(accuracy);
+    const r = Number(radius);
+    const h = Math.max(0, Number(hysteresis) || 0);
+    if (!Number.isFinite(d) || !Number.isFinite(a) || !Number.isFinite(r) ||
+        d < 0 || a < 0 || r <= 0 || a > r) {
+      return 'uncertain';
+    }
+    if (d + a <= r) return 'inside';
+    if (d - a > r + h) return 'outside';
+    return 'uncertain';
+  }
+
+  const geofence = Object.freeze({ DEFAULT_RADIUS, storedRadius, classifyLocation });
   root.AreaGeofence = geofence;
 
   if (typeof module !== 'undefined' && module.exports) {

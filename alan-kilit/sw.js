@@ -1,5 +1,5 @@
 /* Alan Kilit — çevrimdışı önbellek */
-const CACHE = 'alan-kilit-v20';
+const CACHE = 'alan-kilit-v21';
 const ASSETS = [
   './',
   './index.html',

@@ -1,5 +1,5 @@
 {
-  "version": "1.1.7",
+  "version": "1.1.8",
   "releases": [
     {
       "version": "1.1.4",
@@ -27,6 +27,13 @@
       "changes": [
         "Google Maps ile yakın cami, okul ve diğer yerleri arayıp seçerek alan olarak kaydedebilirsin.",
         "İzin verirsen haritada cihaz konumunu görebilir, izin yoksa haritayı elle taşıyabilirsin."
+      ]
+    },
+    {
+      "version": "1.1.8",
+      "changes": [
+        "Kaydettiğin belirli yer adını Google Maps koordinatına çözer; belirsiz sonuçlarda adresiyle doğrulama ister.",
+        "Konum Google'a gönderilmeden önce onay istenir; GPS doğruluğu belirsizse otomatik kilit bekler."
       ]
     }
   ]
