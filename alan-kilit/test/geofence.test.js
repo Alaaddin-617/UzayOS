@@ -19,7 +19,7 @@ test('invalid and out-of-range stored boundaries are safely normalized', () => {
   assert.equal(storedRadius(1200), 1000);
 });
 
-test('Google Places geofences require GPS uncertainty to fit inside the boundary', () => {
+test('geocoded locations require GPS uncertainty to fit inside the boundary', () => {
   assert.equal(classifyLocation(40, 20, 100), 'inside');
   assert.equal(classifyLocation(90, 20, 100), 'uncertain');
   assert.equal(classifyLocation(131, 10, 100, 20), 'outside');

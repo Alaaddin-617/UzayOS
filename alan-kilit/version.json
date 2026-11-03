@@ -1,5 +1,5 @@
 {
-  "version": "1.1.8",
+  "version": "1.1.9",
   "releases": [
     {
       "version": "1.1.4",
@@ -34,6 +34,13 @@
       "changes": [
         "Kaydettiğin belirli yer adını Google Maps koordinatına çözer; belirsiz sonuçlarda adresiyle doğrulama ister.",
         "Konum Google'a gönderilmeden önce onay istenir; GPS doğruluğu belirsizse otomatik kilit bekler."
+      ]
+    },
+    {
+      "version": "1.1.9",
+      "changes": [
+        "Google Maps API anahtarı kaldırıldı; yer adlarını anahtarsız OpenStreetMap hizmetiyle arayabilirsin.",
+        "Cami, okul ve desteklenen diğer kategorilerde yakındaki bulunan yerler otomatik alan olarak eklenir; kategori aramasında konum gönderimi için onay alınır."
       ]
     }
   ]
