@@ -53,10 +53,10 @@
                  maxlength="100" autocomplete="off" enterkeyhint="done">
           <button class="primary btn-add" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><circle cx="12" cy="15.5" r="1.4" class="fill"/></svg>
-            Yakınları bul
+            Yeri bul ve kaydet
           </button>
         </div>
-        <p class="hint">Yazdığın bu belirli yeri Google Maps'te çözer; tek bir kayıt oluşturur. Kesin eşleşme bulunamazsa adresi görünen adaylardan doğru olanı seçmen istenir. Konumun Google'a gönderilmeden önce izin sorulur.</p>
+        <p class="hint">Bir yer adı veya adresi arayabilir; “cami”, “okul”, “hastane”, “park” ve benzeri tanınan yer türlerini yazarsan yakındaki kayıtlar otomatik alan olarak eklenir. Kategori araması için açık izninle cihaz konumun OpenStreetMap'e gönderilir; yer adı aramasında GPS gönderilmez. Harita verisi © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap katkıcıları</a>.</p>
       </form>
 
       <div class="install-banner" id="installBanner">
@@ -255,10 +255,10 @@
             </label>
           </div>
           <div class="row-actions">
-            <button class="primary wide" id="newPlaceAutoFind" type="button">Bu yeri Google Maps'te bul</button>
+            <button class="primary wide" id="newPlaceResolve" type="button">Yeri bul ve kaydet</button>
             <button class="primary wide" id="newSave" type="button">Konumumu elle kaydet</button>
           </div>
-          <p class="fine" id="newPlaceHint">Kaydettiğin belirli yer adını Google Places ile çözer. Kesin tek eşleşme bulunamazsa adresi görünen adaylar arasından doğru yeri seçmen istenir; haritada pin seçmen gerekmez. Aramadan önce güncel konumunun Google'a gönderilmesi için onay alınır.</p>
+          <p class="fine" id="newPlaceHint">Yer adı/adresi aranır; tanınan kategori (ör. cami veya okul) için yakındaki OpenStreetMap kayıtları tek tek alan olarak eklenir. Kategori araması yaklaşık 100 m hassasiyete yuvarlanmış konumunun 10 km çevresindeki en fazla 100 kaydı kapsar; başka bölgeye gidersen yeniden ara. Sonuçlar eksik olabilir. Yer adı aramasında belirsiz sonuçları listeden onayla. Haritada pin seçmen gerekmez.</p>
         </section>
 
         <section class="sheet-block" id="editPlaceBlock" hidden>
@@ -280,7 +280,7 @@
           <p class="fine" id="editScheduleHint" hidden>18 yaş altı: süre yerine alandan çıkınca açılır.</p>
           <div class="row-actions">
             <button class="ghost" id="editUseCurrent" type="button">Konumu buraya ayarla</button>
-            <button class="ghost" id="editResolveWithMaps" type="button">Google Maps ile bu yeri bul</button>
+            <button class="ghost" id="editResolvePlaceName" type="button">Yer adını yeniden bul</button>
             <button class="primary" id="editSave" type="button">Kaydet</button>
           </div>
           <div class="row-actions">
@@ -311,14 +311,6 @@
             <input type="checkbox" id="optPowerSave">
             <i aria-hidden="true"></i>
           </label>
-          <label class="field maps-config">
-            <span>Google Maps API anahtarı</span>
-            <input class="text-input" id="googleMapsApiKey" type="password" autocomplete="off" placeholder="Google Cloud'dan alınan tarayıcı anahtarı">
-          </label>
-          <p class="fine">Anahtar yalnızca bu cihazda saklanır ve Google Maps/Places isteklerinde kullanılır. Otomatik aramada, açık onayından sonra güncel cihaz koordinatı Google Places'a gönderilir. Google Cloud'da Maps JavaScript API ve Places API'yi açıp anahtarı HTTP yönlendirenleriyle sınırla; kullanım için faturalandırma gerekebilir.</p>
-          <div class="row-actions">
-            <button class="ghost" id="saveMapsApiKey" type="button">Harita anahtarını kaydet</button>
-          </div>
           <div class="row-actions">
             <button class="ghost" id="notifyBtn" type="button">Bildirim izni</button>
             <button class="ghost" id="demoBtn" type="button">Kilidi 5 sn test et</button>
@@ -551,7 +543,7 @@
   <dialog class="dialog group-dialog poi-dialog" id="placeResolveDialog" aria-labelledby="placeResolveTitle">
     <div class="group-hub-head">
       <div>
-        <p class="eyebrow">GOOGLE MAPS</p>
+        <p class="eyebrow">OPENSTREETMAP</p>
         <h3 id="placeResolveTitle">Doğru yeri onayla</h3>
       </div>
       <button class="icon-btn" id="placeResolveCancel" type="button" aria-label="Kapat">
@@ -561,17 +553,17 @@
     <div class="poi-picker-content">
       <p class="fine poi-privacy" id="placeResolveQuery"></p>
       <div class="poi-results-wrap">
-        <strong>Aday yerler (en fazla 20)</strong>
+        <strong>Aday yerler (en fazla 5)</strong>
         <ul class="poi-results" id="placeResolveResults"></ul>
       </div>
-      <p class="fine">Yalnızca seçtiğin tek kayıt konumuna bağlanır. Sonuç noktası bina sınırı değildir.</p>
+      <p class="fine">Yalnızca onayladığın tek kayıt konumuna bağlanır. Sonuç noktası bina sınırı değildir. Harita verisi © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap katkıcıları</a>.</p>
     </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="assets/geofence.js" defer></script>
-  <script src="assets/maps-places.js" defer></script>
+  <script src="assets/place-geocoder.js" defer></script>
   <script src="assets/release-notes.js" defer></script>
   <script src="assets/app.js" defer></script>
 </body>

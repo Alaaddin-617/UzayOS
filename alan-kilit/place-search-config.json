@@ -1,0 +1,6 @@
+{
+  "nominatimEndpoint": "https://nominatim.openstreetmap.org/search",
+  "overpassEndpoint": "https://overpass-api.de/api/interpreter",
+  "placeProviderName": "OpenStreetMap Nominatim",
+  "categoryProviderName": "OpenStreetMap Overpass"
+}

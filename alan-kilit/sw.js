@@ -1,13 +1,14 @@
 /* Alan Kilit — çevrimdışı önbellek */
-const CACHE = 'alan-kilit-v21';
+const CACHE = 'alan-kilit-v22';
 const ASSETS = [
   './',
   './index.html',
   './assets/style.css',
   './assets/geofence.js',
-  './assets/maps-places.js',
+  './assets/place-geocoder.js',
   './assets/release-notes.js',
   './assets/app.js',
+  './place-search-config.json',
   './manifest.webmanifest',
   './icon.svg',
   './icon-192.png',
@@ -55,7 +56,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   const path = url.pathname;
-  const networkFirst = request.mode === 'navigate' || NETWORK_FIRST.test(path);
+  const networkFirst = request.mode === 'navigate' ||
+    NETWORK_FIRST.test(path) ||
+    /\/place-search-config\.json$/i.test(path);
 
   if (networkFirst) {
     event.respondWith(
