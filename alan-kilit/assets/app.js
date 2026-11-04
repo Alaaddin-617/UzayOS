@@ -6,11 +6,16 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.1.9';
+const APP_VERSION = '1.2.0';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
-const { DEFAULT_RADIUS, storedRadius, classifyLocation } = window.AreaGeofence;
+const {
+  DEFAULT_RADIUS,
+  storedRadius,
+  classifyLocation,
+  classifyCategoryMembers
+} = window.AreaGeofence;
 const placeGeocoder = window.AreaPlaceGeocoder.createNominatimGeocoder();
 
 try {
@@ -331,11 +336,28 @@ function normalizeHistory(value) {
 function normalizePlace(p, index) {
   const lat = Number(p && p.lat);
   const lng = Number(p && p.lng);
+  const categoryMembers = Array.isArray(p && p.categoryMembers)
+    ? p.categoryMembers.map((member) => ({
+        id: String(member && member.id || ''),
+        name: String(member && member.name || '').slice(0, 120),
+        address: String(member && member.address || '').slice(0, 240),
+        lat: Number(member && member.lat),
+        lng: Number(member && member.lng),
+        geocodeId: String(member && member.geocodeId || '').slice(0, 200),
+        radius: storedRadius(member && member.radius),
+        inside: Boolean(member && member.inside)
+      })).filter((member) =>
+        member.id && Number.isFinite(member.lat) && Number.isFinite(member.lng)
+      ).slice(0, 500)
+    : [];
+  const categoryKey = String(p && p.categoryKey || '').slice(0, 80);
   return {
     id: (p && p.id) ? String(p.id) : uid(),
     name: (p && p.name ? String(p.name) : 'Yer').slice(0, 40),
-    lat: Number.isFinite(lat) ? lat : null,
-    lng: Number.isFinite(lng) ? lng : null,
+    lat: categoryKey && categoryMembers.length ? null : (Number.isFinite(lat) ? lat : null),
+    lng: categoryKey && categoryMembers.length ? null : (Number.isFinite(lng) ? lng : null),
+    categoryKey,
+    categoryMembers,
     geocodeId: p && (p.geocodeId || p.googlePlaceId)
       ? String(p.geocodeId || p.googlePlaceId).slice(0, 200)
       : '',
@@ -724,19 +746,35 @@ function evaluatePositions() {
   if (!lastFix) return;
 
   const places = state.places.filter(
-    (p) => p.enabled && p.lat != null && p.lng != null
+    (p) => p.enabled && (
+      (p.categoryKey && p.categoryMembers && p.categoryMembers.length) ||
+      (p.lat != null && p.lng != null)
+    )
   );
   // 18 yaş altında alan sınırından çıkınca hemen açılsın; yetişkinde GPS titremesini azalt.
   const hysteresis = isAdult() ? (Number(state.settings.hysteresis) || 25) : 0;
   let changed = false;
 
   for (const p of places) {
-    const d = distanceM(lastFix, p);
+    const categoryStatus = p.categoryKey
+      ? classifyCategoryMembers(p.categoryMembers, lastFix, hysteresis)
+      : null;
+    const d = categoryStatus
+      ? categoryStatus.nearestDistance
+      : distanceM(lastFix, p);
     p.distance = d;
 
-    const locationState = p.geocodeId
-      ? classifyLocation(d, lastFix.accuracy, p.radius, hysteresis)
-      : (d <= p.radius ? 'inside' : (d > p.radius + hysteresis ? 'outside' : 'uncertain'));
+    if (categoryStatus) {
+      categoryStatus.memberStates.forEach(({ member, state: memberState }) => {
+        if (memberState === 'inside') member.inside = true;
+        else if (memberState === 'outside') member.inside = false;
+      });
+    }
+    const locationState = categoryStatus
+      ? categoryStatus.state
+      : (p.geocodeId
+        ? classifyLocation(d, lastFix.accuracy, p.radius, hysteresis)
+        : (d <= p.radius ? 'inside' : (d > p.radius + hysteresis ? 'outside' : 'uncertain')));
     if (locationState === 'uncertain') continue;
     const isInside = locationState === 'inside';
     const isClearlyOutside = locationState === 'outside';
@@ -772,10 +810,14 @@ function evaluatePositions() {
   // Kilit yeni açıldıysa ve başka bir alanın içindeysek onu devreye al.
   if (!locked) {
     for (const p of places) {
-      const d = p.distance != null ? p.distance : distanceM(lastFix, p);
-      const locationState = p.geocodeId
-        ? classifyLocation(d, lastFix.accuracy, p.radius, 0)
-        : (d <= p.radius ? 'inside' : 'outside');
+      const locationState = p.categoryKey
+        ? classifyCategoryMembers(p.categoryMembers, lastFix, 0).state
+        : (() => {
+            const d = p.distance != null ? p.distance : distanceM(lastFix, p);
+            return p.geocodeId
+              ? classifyLocation(d, lastFix.accuracy, p.radius, 0)
+              : (d <= p.radius ? 'inside' : 'outside');
+          })();
       if (locationState === 'inside' && !p.knownInside) {
         lockPlace(p);
         changed = true;
@@ -1604,6 +1646,9 @@ function renderList() {
     let meta;
     let stateClass = '';
     const breakLeft = p.breakUntil && p.breakUntil > Date.now() ? p.breakUntil - Date.now() : 0;
+    const categoryStatus = p.categoryKey && lastFix
+      ? classifyCategoryMembers(p.categoryMembers, lastFix, 0)
+      : null;
 
     if (breakLeft > 0) {
       meta = 'molada · ' + Math.max(1, Math.ceil(breakLeft / 60000)) + ' dk sonra tekrar kilitlenecek';
@@ -1611,6 +1656,13 @@ function renderList() {
     } else if (locked && locked.source === 'personal' && locked.placeId === p.id) {
       meta = 'şu an kilitli';
       stateClass = 'state-locked';
+    } else if (categoryStatus && categoryStatus.state === 'inside') {
+      meta = p.categoryMembers.length + ' ' + p.name.toLocaleLowerCase('tr-TR') + ' noktası · içindesin';
+      stateClass = 'state-inside';
+    } else if (categoryStatus && categoryStatus.state === 'uncertain') {
+      meta = p.categoryMembers.length + ' kayıtlı nokta · konum belirsiz';
+    } else if (p.categoryKey) {
+      meta = p.categoryMembers.length + ' kayıtlı nokta · dışındasın';
     } else if (p.lat == null || p.lng == null) {
       meta = 'konum ayarlanmadı';
     } else if (lastFix) {
@@ -1649,6 +1701,7 @@ function renderPlace() {
   $('#placeTitle').textContent = p.name;
 
   const bits = [];
+  if (p.categoryKey) bits.push(p.categoryMembers.length + ' yakın nokta tek kategori kuralında izleniyor');
   if (p.count) bits.push(p.count + ' kez kapandı');
   else bits.push('henüz kapanmadı');
   if (!isAdult()) bits.push('18 yaş altı · çıkınca açılır');
@@ -1703,7 +1756,24 @@ function updatePlaceLive() {
   const dist = $('#statusDist');
   if (!banner) return;
 
-  const d = lastFix && p.lat != null ? distanceM(lastFix, p) : null;
+  const categoryStatus = p.categoryKey && lastFix
+    ? classifyCategoryMembers(p.categoryMembers, lastFix, isAdult() ? (Number(state.settings.hysteresis) || 25) : 0)
+    : null;
+  const nearestMember = categoryStatus
+    ? categoryStatus.memberStates
+      .filter((entry) => Number.isFinite(entry.distance))
+      .sort((left, right) => left.distance - right.distance)[0]
+    : null;
+  const d = lastFix && (p.categoryKey ? nearestMember : p)
+    ? (categoryStatus ? categoryStatus.nearestDistance : distanceM(lastFix, p))
+    : null;
+  const placeState = categoryStatus
+    ? categoryStatus.state
+    : (lastFix && d != null
+      ? (p.geocodeId
+        ? classifyLocation(d, lastFix.accuracy, p.radius, isAdult() ? (Number(state.settings.hysteresis) || 25) : 0)
+        : (d <= p.radius ? 'inside' : 'outside'))
+      : 'uncertain');
   const isLocked = !!(locked && locked.source === 'personal' && locked.placeId === p.id);
   const breakLeft = p.breakUntil && p.breakUntil > Date.now() ? p.breakUntil - Date.now() : 0;
   const accuracy = lastFix && Number.isFinite(lastFix.accuracy)
@@ -1715,10 +1785,13 @@ function updatePlaceLive() {
   let detail = 'Konum izni verdiğinde alanı izlemeye başlarım.';
   let distanceLabel = '';
 
-  if (p.lat == null || p.lng == null) {
+  if ((!p.categoryKey && (p.lat == null || p.lng == null)) ||
+      (p.categoryKey && (!p.categoryMembers || !p.categoryMembers.length))) {
     mode = 'wait';
     headline = 'Konum ayarlanmadı';
-    detail = 'Bu yerin merkezini belirlemek için “Konumu buraya ayarla” düğmesini kullan.';
+    detail = p.categoryKey
+      ? 'Bu kategori için kayıtlı nokta yok. Aramayı yeniden yap.'
+      : 'Bu yerin merkezini belirlemek için “Konumu buraya ayarla” düğmesini kullan.';
   } else if (!lastFix) {
     mode = 'wait';
     headline = 'Konum bekleniyor';
@@ -1739,18 +1812,24 @@ function updatePlaceLive() {
         ? Math.max(1, Math.ceil((locked.autoUnlockAt - Date.now()) / 60000)) + ' dk sonra molaya çıkacak. Alandan çıkınca kendiliğinden açılır.'
         : 'Alanın içindesin, ekran kapalı. Alandan çıkınca kendiliğinden açılır.');
     distanceLabel = 'içinde';
-  } else if (d <= p.radius) {
+  } else if (placeState === 'inside') {
     mode = 'inside';
     headline = 'Alanın içindesin';
     detail = p.knownInside
       ? 'Kilit, buradan çıkıp yeniden girdiğinde kurulacak.'
       : 'Kilit birazdan devreye girecek.';
     distanceLabel = accuracy != null ? '±' + accuracy + ' m' : '';
-  } else {
+  } else if (placeState === 'outside') {
     mode = 'outside';
     headline = 'Alanın dışındasın';
-    detail = 'Bu alana girdiğinde ekran kilitlenecek.';
+    detail = p.categoryKey
+      ? 'Bu kategorideki kayıtlı noktalardan birine girince ekran kilitlenecek.'
+      : 'Bu alana girdiğinde ekran kilitlenecek.';
     distanceLabel = 'girişe ' + fmtDistance(d - p.radius);
+  } else {
+    mode = 'wait';
+    headline = 'Konum belirsiz';
+    detail = 'GPS doğruluğu güvenli alan algılaması için yeterli değil; konum netleşince tekrar değerlendireceğim.';
   }
 
   if (accuracy != null && accuracy > 150) {
@@ -1769,7 +1848,7 @@ function updatePlaceLive() {
   const me = $('#radarMe');
   if (!me) return;
 
-  if (d == null || p.lat == null) {
+  if (d == null || (!p.categoryKey && p.lat == null) || (p.categoryKey && !nearestMember)) {
     me.hidden = true;
   } else {
     const angle = angleFor(p.id);
@@ -1779,7 +1858,7 @@ function updatePlaceLive() {
     me.hidden = false;
     me.style.left = (50 + Math.cos(angle) * radiusPct * normDist) + '%';
     me.style.top = (50 + Math.sin(angle) * radiusPct * normDist) + '%';
-    me.classList.toggle('is-inside', d <= p.radius && !isLocked && breakLeft === 0);
+    me.classList.toggle('is-inside', placeState === 'inside' && !isLocked && breakLeft === 0);
     me.classList.toggle('is-locked', isLocked);
   }
 }
@@ -1830,7 +1909,7 @@ async function resolvePlaceName(value, source, button = null, targetId = null) {
       text: category
         ? 'Yakındaki ' + category[1].label.toLocaleLowerCase('tr-TR') +
           ' araması için yaklaşık 100 m hassasiyete yuvarlanan güncel cihaz konumun ' +
-          providerName + ' hizmetine gönderilir. Yaklaşık 10 km içindeki en fazla 100 kayıt bulunan alanlar olarak eklenir; her biri listede ayrı görünür ve haritada yer seçmen gerekmez. Başka bir bölgeye gidersen o bölgeyi ayrıca arat. Sağlayıcı arama konumunu görebilir. OSM verileri eksik olabilir; gerçek bina sınırları veya tüm yerler garanti edilmez. Aramaya izin veriyor musun?'
+        providerName + ' hizmetine gönderilir. Yaklaşık 10 km içindeki en fazla 100 eşleşme tek kategori kuralında izlenir; bunlardan herhangi birine güvenilir girişte kilitlenir. Haritada yer seçmen gerekmez. Başka bir bölgeye gidersen o bölgeyi ayrıca arat. Sağlayıcı arama konumunu görebilir. OSM verileri eksik olabilir; gerçek bina sınırları veya tüm yerler garanti edilmez. Aramaya izin veriyor musun?'
         : 'Yazdığın yer adı veya adresi, ' + providerName +
           ' hizmetine gönderilir ve bu cihazda 30 güne kadar önbelleğe alınır. Cihazının GPS konumu gönderilmez. Hizmet sağlayıcısı arama isteğini görebilir; en fazla 5 aday döner ve sonuç noktası bina sınırını garanti etmez. Aramaya izin veriyor musun?',
       yes: category ? 'Konumumu gönder ve ara' : 'Yer adını gönder'
@@ -1958,28 +2037,77 @@ function saveResolvedPlace(geocodedPlace, pending) {
 }
 
 function saveResolvedCategoryPlaces(places, categoryName, source, capped) {
-  const existingIds = new Set(state.places.map((place) => place.geocodeId).filter(Boolean));
-  const newPlaces = places.filter((place) => !existingIds.has(place.id));
-  if (!newPlaces.length) {
+  const category = AreaPlaceGeocoder.categoryForQuery(categoryName);
+  if (!category) {
+    toast('Bu kategori desteklenmiyor. Daha belirgin bir yer türü ara.', true);
+    return;
+  }
+  const categoryKey = category[0];
+  const existingRule = state.places.find((place) => place.categoryKey === categoryKey);
+  const legacyPrefix = norm(categoryName) + ' · ';
+  const legacyPlaces = state.places.filter((place) =>
+    !place.categoryKey && norm(place.name).startsWith(legacyPrefix)
+  );
+  const previousMembers = [
+    ...(existingRule ? existingRule.categoryMembers : []),
+    ...legacyPlaces.map((place) => ({
+      id: place.geocodeId || place.id,
+      name: place.name.slice((categoryName + ' · ').length),
+      address: '',
+      lat: place.lat,
+      lng: place.lng,
+      geocodeId: place.geocodeId || place.id,
+      radius: place.radius,
+      inside: place.inside
+    }))
+  ];
+  const oldMemberCount = new Set(previousMembers.map((member) =>
+    member.geocodeId || member.id
+  ).filter(Boolean)).size;
+  const categoryMembers = AreaPlaceGeocoder.mergeCategoryMembers(previousMembers, places, 500);
+  if (categoryMembers.length === oldMemberCount && existingRule && !legacyPlaces.length) {
     toast('Bu aramadaki ' + categoryName.toLocaleLowerCase('tr-TR') +
       ' alanları zaten kayıtlı.');
     return;
   }
 
-  const defaults = roleDefaults(state.role);
-  const options = source === 'settings'
-    ? {
-        lockMinutes: minutesValue($('#newLockMinutes').value, defaults.lockMinutes, 240),
-        breakMinutes: minutesValue($('#newBreakMinutes').value, defaults.breakMinutes, 60)
-      }
-    : {};
-  newPlaces.forEach((place) => {
-    createPlace(
-      uniqueResolvedPlaceName(categoryName + ' · ' + place.name),
-      place.location,
-      { ...options, geocodeId: place.id, deferSave: true }
-    );
-  });
+  let rule = existingRule;
+  if (!rule) {
+    const defaults = roleDefaults(state.role);
+    const options = source === 'settings'
+      ? {
+          lockMinutes: minutesValue($('#newLockMinutes').value, defaults.lockMinutes, 240),
+          breakMinutes: minutesValue($('#newBreakMinutes').value, defaults.breakMinutes, 60)
+        }
+      : {};
+    rule = createPlace(categoryName, null, {
+      ...options,
+      categoryKey,
+      categoryMembers,
+      deferSave: true
+    });
+  } else {
+    rule.categoryMembers = categoryMembers;
+  }
+  if (legacyPlaces.length) {
+    rule.count += legacyPlaces.reduce((sum, place) => sum + place.count, 0);
+    rule.totalMs += legacyPlaces.reduce((sum, place) => sum + place.totalMs, 0);
+    rule.lastAt = [
+      rule.lastAt,
+      ...legacyPlaces.map((place) => place.lastAt)
+    ].filter(Number.isFinite).sort((left, right) => right - left)[0] || null;
+    rule.history = [
+      ...(rule.history || []),
+      ...legacyPlaces.flatMap((place) => place.history || [])
+    ].sort((left, right) => right.at - left.at).slice(0, 50);
+    const activeLegacyLock = locked && legacyPlaces.find((place) => place.id === locked.placeId);
+    if (activeLegacyLock) {
+      locked.placeId = rule.id;
+      locked.label = rule.name;
+      state.activeLock = locked;
+    }
+    state.places = state.places.filter((place) => !legacyPlaces.includes(place));
+  }
   evaluatePositions();
   save();
   renderAll();
@@ -1992,11 +2120,12 @@ function saveResolvedCategoryPlaces(places, categoryName, source, capped) {
     closeSheet();
   }
 
-  const count = newPlaces.length;
+  const count = categoryMembers.length - oldMemberCount;
   toast(
-    count + ' ' + categoryName.toLocaleLowerCase('tr-TR') +
-      ' alanı kaydedildi.' +
-      (capped ? ' Sonuç sınırına ulaşıldı; daha fazlası olabilir.' : '')
+    categoryName + ' kuralı: ' + categoryMembers.length + ' yakındaki nokta izleniyor.' +
+      (count > 0 ? ' ' + count + ' yeni nokta eklendi.' : '') +
+      (categoryMembers.length >= 500 ? ' Kuralın nokta sınırına ulaşıldı.' : '') +
+      (capped ? ' Arama sonuç sınırına ulaşıldı; daha fazlası olabilir.' : '')
   );
 }
 
@@ -2023,12 +2152,19 @@ function setBusy(button, isBusy, label) {
 
 function createPlace(name, coords, options = {}) {
   const defaults = roleDefaults(state.role);
+  const categoryKey = String(options.categoryKey || '');
+  const categoryMembers = Array.isArray(options.categoryMembers)
+    ? options.categoryMembers.slice(0, 500)
+    : [];
+  const isCategoryRule = !!categoryKey && categoryMembers.length > 0;
   const place = {
     id: uid(),
     name: name.slice(0, 40),
-    lat: Number(coords.lat),
-    lng: Number(coords.lng),
-    geocodeId: options.geocodeId ? String(options.geocodeId).slice(0, 200) : '',
+    lat: isCategoryRule ? null : Number(coords.lat),
+    lng: isCategoryRule ? null : Number(coords.lng),
+    categoryKey: isCategoryRule ? categoryKey : '',
+    categoryMembers: isCategoryRule ? categoryMembers : [],
+    geocodeId: !isCategoryRule && options.geocodeId ? String(options.geocodeId).slice(0, 200) : '',
     radius: DEFAULT_RADIUS,
     color: PALETTE[state.places.length % PALETTE.length],
     count: 0,
@@ -2043,7 +2179,7 @@ function createPlace(name, coords, options = {}) {
     createdAt: Date.now()
   };
 
-  if (lastFix && Number.isFinite(place.lat) && Number.isFinite(place.lng)) {
+  if (!isCategoryRule && lastFix && Number.isFinite(place.lat) && Number.isFinite(place.lng)) {
     const d = distanceM(lastFix, place);
     place.inside = place.geocodeId
       ? classifyLocation(d, lastFix.accuracy, place.radius, 0) === 'inside'
@@ -2105,6 +2241,8 @@ function syncSettings() {
   const p = selectedId ? getPlace(selectedId) : null;
   const editBlock = $('#editPlaceBlock');
   editBlock.hidden = !p;
+  if ($('#editUseCurrent')) $('#editUseCurrent').hidden = !!(p && p.categoryKey);
+  if ($('#editResolvePlaceName')) $('#editResolvePlaceName').hidden = !!(p && p.categoryKey);
 
   if (p) {
     $('#editName').value = p.name;

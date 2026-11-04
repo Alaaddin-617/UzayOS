@@ -45,13 +45,32 @@
     },
     park: {
       label: 'Park',
-      aliases: ['park', 'parklar', 'parks'],
+      aliases: ['park', 'parkı', 'parklar', 'parks'],
       selectors: [['leisure', 'park']]
+    },
+    shopping_centre: {
+      label: 'AVM',
+      aliases: ['avm', 'alışveriş merkezi', 'alisveris merkezi', 'shopping centre', 'shopping center', 'mall'],
+      selectors: [['shop', 'mall'], ['amenity', 'marketplace']]
     },
     supermarket: {
       label: 'Market',
-      aliases: ['market', 'marketler', 'süpermarket', 'supermarket', 'grocery', 'bakkal'],
-      selectors: [['shop', 'supermarket'], ['shop', 'convenience']]
+      aliases: [
+        'market', 'marketi', 'marketler', 'süpermarket', 'supermarket', 'grocery',
+        'bakkal', 'bakkallar', 'convenience store'
+      ],
+      selectors: [
+        ['shop', 'supermarket'],
+        ['shop', 'convenience'],
+        ['shop', 'grocery'],
+        ['shop', 'general'],
+        ['shop', 'variety_store']
+      ]
+    },
+    shop: {
+      label: 'Dükkan',
+      aliases: ['dükkan', 'dukkan', 'dükkanlar', 'mağaza', 'magaza', 'shop', 'shops', 'store', 'stores'],
+      selectors: [['shop']]
     },
     pharmacy: {
       label: 'Eczane',
@@ -176,6 +195,42 @@
         return true;
       })
       .slice(0, MAX_RESULTS);
+  }
+
+  function mergeCategoryMembers(existingMembers, places, limit = 500) {
+    const members = new Map();
+    (Array.isArray(existingMembers) ? existingMembers : []).forEach((member) => {
+      const id = String(member && (member.geocodeId || member.id) || '');
+      const lat = Number(member && member.lat);
+      const lng = Number(member && member.lng);
+      if (!id || !Number.isFinite(lat) || !Number.isFinite(lng) || members.has(id)) return;
+      members.set(id, {
+        ...member,
+        id: String(member.id || id),
+        geocodeId: id,
+        lat,
+        lng,
+        radius: Number(member.radius) || 100,
+        inside: Boolean(member.inside)
+      });
+    });
+    (Array.isArray(places) ? places : []).forEach((place) => {
+      const id = String(place && place.id || '');
+      const location = normalizeCoordinates(place && place.location);
+      if (!id || !location || members.has(id)) return;
+      members.set(id, {
+        id,
+        name: String(place.name || '').slice(0, 120),
+        address: String(place.address || '').slice(0, 240),
+        geocodeId: id,
+        lat: location.lat,
+        lng: location.lng,
+        radius: 100,
+        inside: false
+      });
+    });
+    const maxMembers = Math.max(1, Math.min(500, Math.floor(Number(limit) || 500)));
+    return Array.from(members.values()).slice(0, maxMembers);
   }
 
   function resolveUniqueExactMatch(query, places) {
@@ -422,7 +477,7 @@
       };
       const selectors = category[1].selectors.map((selector) => {
         const [key, value, extraKey, extraValue] = selector;
-        const tags = '["' + key + '"="' + value + '"]' +
+        const tags = '["' + key + '"' + (value ? '="' + value + '"' : '') + ']' +
           (extraKey ? '["' + extraKey + '"="' + extraValue + '"]' : '');
         return '  nwr(around:' + CATEGORY_SEARCH_RADIUS_METERS + ',' +
           searchCenter.lat + ',' + searchCenter.lng + ')' + tags + ';';
@@ -509,6 +564,7 @@
     REQUEST_TIMEOUT_MS,
     categoryForQuery,
     createNominatimGeocoder,
+    mergeCategoryMembers,
     normalizeCoordinates,
     normalizeQuery,
     normalizeResults,

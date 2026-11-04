@@ -13,6 +13,7 @@ const {
   normalizeCoordinates,
   normalizeQuery,
   normalizeResults,
+  mergeCategoryMembers,
   resolveUniqueExactMatch,
   updateSavedPlaceCoordinates
 } = require('../assets/place-geocoder.js');
@@ -77,7 +78,25 @@ test('recognizes supported place categories from Turkish names', () => {
   assert.equal(categoryForQuery('Cami')[0], 'mosque');
   assert.equal(categoryForQuery('yakındaki okullar')[0], 'school');
   assert.equal(categoryForQuery('Eczane')[0], 'pharmacy');
+  assert.equal(categoryForQuery('Market')[0], 'supermarket');
+  assert.equal(categoryForQuery('Mağaza')[0], 'shop');
+  assert.equal(categoryForQuery('Park')[0], 'park');
+  assert.equal(categoryForQuery('AVM')[0], 'shopping_centre');
   assert.equal(categoryForQuery('kendi evim'), null);
+});
+
+test('combines all returned category places into one deduplicated rule member list', () => {
+  const initial = mergeCategoryMembers([], [
+    { id: 'node:1', name: 'Birinci', location: { lat: 41, lng: 29 } },
+    { id: 'node:2', name: 'İkinci', location: { lat: 41.1, lng: 29.1 } }
+  ]);
+  const updated = mergeCategoryMembers(initial, [
+    { id: 'node:2', name: 'İkinci duplicate', location: { lat: 41.1, lng: 29.1 } },
+    { id: 'way:3', name: 'Üçüncü', location: { lat: 41.2, lng: 29.2 } }
+  ]);
+  assert.equal(updated.length, 3);
+  assert.deepEqual(updated.map((member) => member.geocodeId), ['node:1', 'node:2', 'way:3']);
+  assert.equal(mergeCategoryMembers(updated, [], 2).length, 2);
 });
 
 test('saved coordinate updates preserve record identity and history', () => {
@@ -248,6 +267,30 @@ test('category search sends the consented location to Overpass and normalizes po
   assert.equal(result.places[1].address, 'İstanbul');
 });
 
+test('maps school, market/shop, and park terms to their OSM category tags', async () => {
+  const queries = [];
+  let time = 100000;
+  const geocoder = createNominatimGeocoder({
+    storage: new MemoryStorage(),
+    now: () => {
+      time += MIN_CATEGORY_REQUEST_INTERVAL_MS;
+      return time;
+    },
+    fetchImpl: async (url, options) => {
+      queries.push(new URLSearchParams(options.body).get('data'));
+      return { ok: true, json: async () => ({ elements: [] }) };
+    }
+  });
+
+  for (const term of ['Okul', 'Market', 'Mağaza', 'Park']) {
+    await geocoder.searchCategory(term, { lat: 41, lng: 29 });
+  }
+  assert.ok(queries[0].includes('["amenity"="school"]'));
+  assert.ok(queries[1].includes('["shop"="supermarket"]'));
+  assert.ok(queries[2].includes('["shop"]'));
+  assert.ok(queries[3].includes('["leisure"="park"]'));
+});
+
 test('category query caps results and rejects a missing location before network access', async () => {
   let fetchCount = 0;
   const geocoder = createNominatimGeocoder({
@@ -311,30 +354,6 @@ test('surfaces provider errors instead of saving empty or incorrect coordinates'
     fetchImpl: async () => ({ ok: false, status: 429 })
   });
 
-  test('backs off after provider rate limiting and gives a clear retry delay', async () => {
-    const storage = new MemoryStorage();
-    let time = 100000;
-    let requests = 0;
-    const geocoder = createNominatimGeocoder({
-      storage,
-      now: () => time,
-      wait: async (milliseconds) => {
-        time += milliseconds;
-      },
-      fetchImpl: async () => {
-        requests++;
-        return {
-          ok: false,
-          status: 429,
-          headers: { get: (name) => name === 'Retry-After' ? '45' : null }
-        };
-      }
-    });
-
-    await assert.rejects(geocoder.search('Kafe'), /yanıt vermedi \(429\)/);
-    await assert.rejects(geocoder.search('Kafe'), /45 saniye sonra yeniden dene/);
-    assert.equal(requests, 1);
-  });
   await assert.rejects(geocoder.search('Merkez Camii'), /yanıt vermedi \(429\)/);
   const invalidResponseGeocoder = createNominatimGeocoder({
     storage: new MemoryStorage(),
@@ -359,4 +378,29 @@ test('surfaces provider errors instead of saving empty or incorrect coordinates'
     id: 'bad',
     location: { lat: 91, lng: 29 }
   }));
+});
+
+test('backs off after provider rate limiting and gives a clear retry delay', async () => {
+  const storage = new MemoryStorage();
+  let time = 100000;
+  let requests = 0;
+  const geocoder = createNominatimGeocoder({
+    storage,
+    now: () => time,
+    wait: async (milliseconds) => {
+      time += milliseconds;
+    },
+    fetchImpl: async () => {
+      requests++;
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: (name) => name === 'Retry-After' ? '45' : null }
+      };
+    }
+  });
+
+  await assert.rejects(geocoder.search('Kafe'), /yanıt vermedi \(429\)/);
+  await assert.rejects(geocoder.search('Kafe'), /45 saniye sonra yeniden dene/);
+  assert.equal(requests, 1);
 });
