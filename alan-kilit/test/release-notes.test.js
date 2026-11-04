@@ -10,6 +10,8 @@ test('compares installed and latest app versions for update availability', () =>
   assert.equal(compareVersions('1.1.8', '1.1.8'), 0);
   assert.equal(compareVersions('1.1.7', '1.1.8'), -1);
   assert.equal(compareVersions('1.1.9', '1.1.8'), 1);
+  assert.equal(compareVersions('1.1.9', '1.2.0'), -1);
+  assert.equal(compareVersions('1.2.0', '1.2.0'), 0);
   assert.equal(compareVersions('1.1.8', 'invalid'), null);
 });
 

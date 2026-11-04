@@ -27,7 +27,58 @@
     return 'uncertain';
   }
 
-  const geofence = Object.freeze({ DEFAULT_RADIUS, storedRadius, classifyLocation });
+  function classifyCategoryMembers(members, fix, hysteresis = 0) {
+    if (!Array.isArray(members) || !members.length || !fix) {
+      return { state: 'uncertain', nearestDistance: null, memberStates: [] };
+    }
+
+    const memberStates = members.map((member) => {
+      const lat = Number(member && member.lat);
+      const lng = Number(member && member.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+          Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+          !Number.isFinite(Number(fix.lat)) || !Number.isFinite(Number(fix.lng)) ||
+          Math.abs(Number(fix.lat)) > 90 || Math.abs(Number(fix.lng)) > 180) {
+        return { member, distance: null, state: 'uncertain' };
+      }
+      const toRadians = (degrees) => degrees * Math.PI / 180;
+      const earthRadius = 6371000;
+      const deltaLat = toRadians(lat - Number(fix.lat));
+      const deltaLng = toRadians(lng - Number(fix.lng));
+      const a = Math.sin(deltaLat / 2) ** 2 +
+        Math.cos(toRadians(Number(fix.lat))) * Math.cos(toRadians(lat)) *
+        Math.sin(deltaLng / 2) ** 2;
+      const distance = earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return {
+        member,
+        distance,
+        state: classifyLocation(
+          distance,
+          fix.accuracy,
+          storedRadius(member.radius),
+          hysteresis
+        )
+      };
+    });
+
+    const validDistances = memberStates
+      .map((item) => item.distance)
+      .filter((distance) => Number.isFinite(distance));
+    const anyInside = memberStates.some((item) => item.state === 'inside');
+    const allOutside = memberStates.every((item) => item.state === 'outside');
+    return {
+      state: anyInside ? 'inside' : (allOutside ? 'outside' : 'uncertain'),
+      nearestDistance: validDistances.length ? Math.min(...validDistances) : null,
+      memberStates
+    };
+  }
+
+  const geofence = Object.freeze({
+    DEFAULT_RADIUS,
+    storedRadius,
+    classifyLocation,
+    classifyCategoryMembers
+  });
   root.AreaGeofence = geofence;
 
   if (typeof module !== 'undefined' && module.exports) {

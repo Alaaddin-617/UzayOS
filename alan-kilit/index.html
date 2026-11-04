@@ -56,7 +56,7 @@
             Yeri bul ve kaydet
           </button>
         </div>
-        <p class="hint">Bir yer adı veya adresi arayabilir; “cami”, “okul”, “hastane”, “park” ve benzeri tanınan yer türlerini yazarsan yakındaki kayıtlar otomatik alan olarak eklenir. Kategori araması için açık izninle cihaz konumun OpenStreetMap'e gönderilir; yer adı aramasında GPS gönderilmez. Harita verisi © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap katkıcıları</a>.</p>
+        <p class="hint">Bir yer adı veya adresi arayabilir; “cami”, “okul”, “market”, “mağaza”, “park” ve benzeri tanınan türleri yazarsan yakındaki eşleşmeler tek kategori kuralında izlenir. Herhangi bir eşleşmeye güvenilir girişte kilitlenir. Kategori araması için açık izninle yaklaşık konumun OpenStreetMap'e gönderilir; yer adı aramasında GPS gönderilmez. Sonuçlar kapsama ve arama sınırlarıyla kısıtlıdır. Harita verisi © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap katkıcıları</a>.</p>
       </form>
 
       <div class="install-banner" id="installBanner">
@@ -258,7 +258,7 @@
             <button class="primary wide" id="newPlaceResolve" type="button">Yeri bul ve kaydet</button>
             <button class="primary wide" id="newSave" type="button">Konumumu elle kaydet</button>
           </div>
-          <p class="fine" id="newPlaceHint">Yer adı/adresi aranır; tanınan kategori (ör. cami veya okul) için yakındaki OpenStreetMap kayıtları tek tek alan olarak eklenir. Kategori araması yaklaşık 100 m hassasiyete yuvarlanmış konumunun 10 km çevresindeki en fazla 100 kaydı kapsar; başka bölgeye gidersen yeniden ara. Sonuçlar eksik olabilir. Yer adı aramasında belirsiz sonuçları listeden onayla. Haritada pin seçmen gerekmez.</p>
+          <p class="fine" id="newPlaceHint">Yer adı/adresi aranır; tanınan kategori (ör. cami, okul, market veya park) için yakındaki OpenStreetMap kayıtları tek kategori kuralında izlenir. Kategori araması yaklaşık 100 m hassasiyete yuvarlanmış konumunun 10 km çevresindeki en fazla 100 kaydı kapsar; eşleşmelerden herhangi birine güvenilir girişte kilitlenir. Başka bölgeye gidersen yeniden ara. Sonuçlar eksik olabilir. Yer adı aramasında belirsiz sonuçları listeden onayla. Haritada pin seçmen gerekmez.</p>
         </section>
 
         <section class="sheet-block" id="editPlaceBlock" hidden>

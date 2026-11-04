@@ -1,5 +1,5 @@
 {
-  "version": "1.1.9",
+  "version": "1.2.0",
   "releases": [
     {
       "version": "1.1.4",
@@ -41,6 +41,14 @@
       "changes": [
         "Google Maps API anahtarı kaldırıldı; yer adlarını anahtarsız OpenStreetMap hizmetiyle arayabilirsin.",
         "Cami, okul ve desteklenen diğer kategorilerde yakındaki bulunan yerler otomatik alan olarak eklenir; kategori aramasında konum gönderimi için onay alınır."
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "changes": [
+        "Cami, okul, market/mağaza, park ve desteklenen diğer kategoriler yakındaki sonuçları tek kategori kuralında izler.",
+        "Kategori sonuçlarından herhangi birine güvenilir girişte kilitlenir; GPS belirsizse kilit uygulanmaz.",
+        "Arama sonuçları yakındaki sınırlı OpenStreetMap kayıtlarıyla sınırlıdır; tüm yerler garanti edilmez."
       ]
     }
   ]
