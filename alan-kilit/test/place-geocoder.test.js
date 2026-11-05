@@ -8,6 +8,8 @@ const {
   MIN_REQUEST_INTERVAL_MS,
   MIN_CATEGORY_REQUEST_INTERVAL_MS,
   CATEGORY_SEARCH_RADIUS_METERS,
+  CATEGORY_REQUEST_TIMEOUT_MS,
+  EMPTY_CATEGORY_CACHE_TTL_MS,
   categoryForQuery,
   createNominatimGeocoder,
   normalizeCoordinates,
@@ -291,6 +293,135 @@ test('maps school, market/shop, and park terms to their OSM category tags', asyn
   assert.ok(queries[3].includes('["leisure"="park"]'));
 });
 
+test('category searches fall back after timeout for all primary supported categories', async () => {
+  const terms = ['Cami', 'Okul', 'Market', 'Mağaza', 'Park', 'Restoran'];
+  for (const [index, term] of terms.entries()) {
+    const calls = [];
+    const geocoder = createNominatimGeocoder({
+      storage: new MemoryStorage(),
+      now: () => 100000,
+      wait: async () => {},
+      getServiceConfig: async () => ({
+        overpassEndpoints: [
+          'https://primary.example/api/interpreter',
+          'https://fallback.example/api/interpreter'
+        ]
+      }),
+      fetchImpl: async (url, options) => {
+        calls.push({ url, options });
+        if (new URL(url).hostname === 'primary.example') {
+          const error = new Error('request timeout');
+          error.name = 'AbortError';
+          throw error;
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            elements: [{
+              type: 'node',
+              id: index + 100,
+              lat: 41.1,
+              lon: 29,
+              tags: { name: term + ' sonucu' }
+            }]
+          })
+        };
+      }
+    });
+
+    const result = await geocoder.searchCategory(term, {
+      lat: 41 + index / 100,
+      lng: 29
+    });
+    assert.deepEqual(calls.map(({ url }) => new URL(url).hostname), [
+      'primary.example',
+      'fallback.example'
+    ]);
+    assert.equal(result.places.length, 1, term);
+    assert.equal(
+      new URLSearchParams(calls[0].options.body).get('data').includes('[out:json][timeout:15]'),
+      true
+    );
+  }
+  assert.equal(CATEGORY_REQUEST_TIMEOUT_MS, 18000);
+});
+
+test('category searches fall back when Overpass returns a remark', async () => {
+  const calls = [];
+  const geocoder = createNominatimGeocoder({
+    storage: new MemoryStorage(),
+    now: () => 100000,
+    wait: async () => {},
+    getServiceConfig: async () => ({
+      overpassEndpoints: [
+        'https://primary.example/api/interpreter',
+        'https://fallback.example/api/interpreter'
+      ]
+    }),
+    fetchImpl: async (url) => {
+      calls.push(new URL(url).hostname);
+      return {
+        ok: true,
+        json: async () => calls.length === 1
+          ? { remark: 'runtime error: query timed out', elements: [] }
+          : {
+              elements: [{
+                type: 'node',
+                id: 33,
+                lat: 41.1,
+                lon: 29,
+                tags: { name: 'Yedek sonuç' }
+              }]
+            }
+      };
+    }
+  });
+
+  const result = await geocoder.searchCategory('Restoran', { lat: 41, lng: 29 });
+  assert.deepEqual(calls, ['primary.example', 'fallback.example']);
+  assert.equal(result.places[0].name, 'Yedek sonuç');
+});
+
+test('category searches cache empty results briefly without turning them into saved places', async () => {
+  const terms = ['Cami', 'Okul', 'Market', 'Mağaza', 'Park', 'Restoran'];
+  for (const term of terms) {
+    let requests = 0;
+    const geocoder = createNominatimGeocoder({
+      storage: new MemoryStorage(),
+      now: () => 100000,
+      wait: async () => {},
+      fetchImpl: async () => {
+        requests++;
+        return { ok: true, json: async () => ({ elements: [] }) };
+      }
+    });
+
+    const first = await geocoder.searchCategory(term, { lat: 41, lng: 29 });
+    const second = await geocoder.searchCategory(term, { lat: 41, lng: 29 });
+    assert.deepEqual(first, { places: [], capped: false }, term);
+    assert.deepEqual(second, first, term);
+    assert.equal(requests, 1, term);
+  }
+  assert.equal(EMPTY_CATEGORY_CACHE_TTL_MS, 60000);
+});
+
+test('empty category results return before the app persists a category rule', () => {
+  const appSource = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '../assets/app.js'),
+    'utf8'
+  );
+  const categoryBranch = appSource.slice(
+    appSource.indexOf('if (category) {', appSource.indexOf('async function resolvePlaceName')),
+    appSource.indexOf('\n    const places = await placeGeocoder.search(query', appSource.indexOf('async function resolvePlaceName'))
+  );
+  const noResultsGuard = categoryBranch.indexOf('if (!result.places.length)');
+  const saveCall = categoryBranch.indexOf('saveResolvedCategoryPlaces(');
+
+  assert.ok(noResultsGuard >= 0);
+  assert.ok(saveCall > noResultsGuard);
+  assert.match(categoryBranch.slice(noResultsGuard, saveCall), /return;/);
+});
+
 test('category query caps results and rejects a missing location before network access', async () => {
   let fetchCount = 0;
   const geocoder = createNominatimGeocoder({
@@ -403,4 +534,43 @@ test('backs off after provider rate limiting and gives a clear retry delay', asy
   await assert.rejects(geocoder.search('Kafe'), /yanıt vermedi \(429\)/);
   await assert.rejects(geocoder.search('Kafe'), /45 saniye sonra yeniden dene/);
   assert.equal(requests, 1);
+});
+
+test('Overpass Retry-After backoff is isolated per endpoint and honored', async () => {
+  const storage = new MemoryStorage();
+  let time = 100000;
+  const endpoints = [];
+  const geocoder = createNominatimGeocoder({
+    storage,
+    now: () => time,
+    wait: async (milliseconds) => {
+      time += milliseconds;
+    },
+    getServiceConfig: async () => ({
+      overpassEndpoints: [
+        'https://busy.example/api/interpreter',
+        'https://available.example/api/interpreter'
+      ]
+    }),
+    fetchImpl: async (url) => {
+      const host = new URL(url).hostname;
+      endpoints.push(host);
+      if (host === 'busy.example') {
+        return {
+          ok: false,
+          status: 429,
+          headers: { get: (name) => name === 'Retry-After' ? '45' : null }
+        };
+      }
+      return { ok: true, json: async () => ({ elements: [] }) };
+    }
+  });
+
+  await geocoder.searchCategory('Cami', { lat: 41, lng: 29 });
+  await geocoder.searchCategory('Okul', { lat: 41.1, lng: 29 });
+  assert.deepEqual(endpoints, [
+    'busy.example',
+    'available.example',
+    'available.example'
+  ]);
 });

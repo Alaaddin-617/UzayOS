@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "releases": [
     {
       "version": "1.1.4",
@@ -49,6 +49,14 @@
         "Cami, okul, market/mağaza, park ve desteklenen diğer kategoriler yakındaki sonuçları tek kategori kuralında izler.",
         "Kategori sonuçlarından herhangi birine güvenilir girişte kilitlenir; GPS belirsizse kilit uygulanmaz.",
         "Arama sonuçları yakındaki sınırlı OpenStreetMap kayıtlarıyla sınırlıdır; tüm yerler garanti edilmez."
+      ]
+    },
+    {
+      "version": "1.2.1",
+      "changes": [
+        "Cami, okul, market/mağaza, park ve restoran aramaları zaman aşımında yedek OpenStreetMap hizmetini dener.",
+        "Boş sonuçlar kategori kuralı olarak kaydedilmez; hizmet hatalarında yeniden deneme bilgisi gösterilir.",
+        "Dosyadan açılan eski uygulamalar yeni sürümü denetler; güncel web uygulaması bağlantısı ile devam edebilir."
       ]
     }
   ]

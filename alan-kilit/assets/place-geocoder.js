@@ -17,7 +17,9 @@
   const MIN_CATEGORY_REQUEST_INTERVAL_MS = 10000;
   const CATEGORY_SEARCH_RADIUS_METERS = 10000;
   const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+  const EMPTY_CATEGORY_CACHE_TTL_MS = 60 * 1000;
   const REQUEST_TIMEOUT_MS = 30000;
+  const CATEGORY_REQUEST_TIMEOUT_MS = 18000;
   const CATEGORIES = Object.freeze({
     mosque: {
       label: 'Cami',
@@ -266,16 +268,17 @@
     let categoryCache = new Map();
     let categoryQueue = Promise.resolve();
 
-    async function fetchRequest(url, init) {
+    async function fetchRequest(url, init, timeoutMs = REQUEST_TIMEOUT_MS, consumeResponse) {
       const controller = root.AbortController ? new root.AbortController() : null;
       const timeout = controller
-        ? root.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+        ? root.setTimeout(() => controller.abort(), timeoutMs)
         : null;
       try {
-        return await fetchImpl(url, {
+        const response = await fetchImpl(url, {
           ...init,
           ...(controller ? { signal: controller.signal } : {})
         });
+        return consumeResponse ? await consumeResponse(response) : response;
       } catch (error) {
         if (error && error.name === 'AbortError') {
           throw new Error('Yer arama isteği zaman aşımına uğradı');
@@ -286,8 +289,14 @@
       }
     }
 
-    function assertProviderAvailable(kind) {
-      const backoffKey = BACKOFF_PREFIX + kind;
+    function providerBackoffKey(kind, url) {
+      if (kind !== 'overpass' || !url) return BACKOFF_PREFIX + kind;
+      const parsed = new URL(url);
+      return BACKOFF_PREFIX + kind + '.' + encodeURIComponent(parsed.origin + parsed.pathname);
+    }
+
+    function assertProviderAvailable(kind, url) {
+      const backoffKey = providerBackoffKey(kind, url);
       const blockedUntil = Number(storage.getItem(backoffKey)) || 0;
       const remaining = blockedUntil - now();
       if (remaining > 0) {
@@ -296,37 +305,56 @@
       }
     }
 
-    async function fetchProvider(kind, url, init) {
-      assertProviderAvailable(kind);
-      const backoffKey = BACKOFF_PREFIX + kind;
+    function retryAfterMs(response) {
+      const value = response && response.headers &&
+        typeof response.headers.get === 'function'
+        ? response.headers.get('Retry-After')
+        : null;
+      if (value == null || value === '') return 0;
+      const seconds = Number(value);
+      if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+      const date = Date.parse(value);
+      return Number.isFinite(date) ? Math.max(0, date - now()) : 0;
+    }
+
+    function backoffProvider(kind, url, delayMs, minimumDelayMs = 0) {
+      const backoffKey = providerBackoffKey(kind, url);
+      const previousUntil = Number(storage.getItem(backoffKey)) || 0;
+      const previousDelay = Math.max(0, previousUntil - now());
+      const delay = Math.max(
+        minimumDelayMs,
+        Math.min(5 * 60 * 1000, Math.max(delayMs, previousDelay * 2))
+      );
+      storage.setItem(backoffKey, String(now() + delay));
+    }
+
+    async function fetchProvider(kind, url, init, timeoutMs, consumeResponse) {
+      assertProviderAvailable(kind, url);
+      const backoffKey = providerBackoffKey(kind, url);
       try {
-        const response = await fetchRequest(url, init);
+        const result = await fetchRequest(url, init, timeoutMs, consumeResponse);
+        const response = consumeResponse && result ? result.response : result;
         if (!response || !response.ok) {
           const status = response ? Number(response.status) || 0 : 0;
-          const retryAfter = response && response.headers &&
-            typeof response.headers.get === 'function'
-            ? Number(response.headers.get('Retry-After'))
-            : 0;
+          const retryAfter = retryAfterMs(response);
           const baseDelay = status === 429 || status === 503
-            ? Math.max(30000, retryAfter * 1000)
+            ? 30000
             : (status >= 500 || status === 0 ? 10000 : 0);
           if (baseDelay) {
-            const previousUntil = Number(storage.getItem(backoffKey)) || 0;
-            const previousDelay = Math.max(0, previousUntil - now());
-            const delay = Math.min(5 * 60 * 1000, Math.max(baseDelay, previousDelay * 2));
-            storage.setItem(backoffKey, String(now() + delay));
+            backoffProvider(kind, url, baseDelay, retryAfter);
           }
           const reason = status ? String(status) : 'network';
-          throw new Error('Yer arama hizmeti yanıt vermedi (' + reason + ')');
+          const retryMessage = baseDelay
+            ? '. ' + Math.ceil(Math.max(baseDelay, retryAfter) / 1000) +
+              ' saniye sonra yeniden dene.'
+            : '';
+          throw new Error('Yer arama hizmeti yanıt vermedi (' + reason + ')' + retryMessage);
         }
         storage.removeItem(backoffKey);
-        return response;
+        return result;
       } catch (error) {
         if (/yanıt vermedi/.test(String(error && error.message))) throw error;
-        const previousUntil = Number(storage.getItem(backoffKey)) || 0;
-        const previousDelay = Math.max(0, previousUntil - now());
-        const delay = Math.min(5 * 60 * 1000, Math.max(10000, previousDelay * 2));
-        storage.setItem(backoffKey, String(now() + delay));
+        backoffProvider(kind, url, 10000);
         throw error;
       }
     }
@@ -356,7 +384,13 @@
       };
       return {
         nominatimEndpoint: validateEndpoint(candidate.nominatimEndpoint, ENDPOINT),
-        overpassEndpoint: validateEndpoint(candidate.overpassEndpoint, OVERPASS_ENDPOINT),
+        overpassEndpoints: Array.from(new Set(
+          (Array.isArray(candidate.overpassEndpoints)
+            ? candidate.overpassEndpoints
+            : [candidate.overpassEndpoint || OVERPASS_ENDPOINT])
+            .slice(0, 5)
+            .map((endpoint) => validateEndpoint(endpoint, OVERPASS_ENDPOINT))
+        )),
         placeProviderName: String(candidate.placeProviderName || 'OpenStreetMap Nominatim').slice(0, 80),
         categoryProviderName: String(candidate.categoryProviderName || 'OpenStreetMap Overpass').slice(0, 80)
       };
@@ -482,7 +516,7 @@
         return '  nwr(around:' + CATEGORY_SEARCH_RADIUS_METERS + ',' +
           searchCenter.lat + ',' + searchCenter.lng + ')' + tags + ';';
       });
-      return '[out:json][timeout:25];\n(\n' + selectors.join('\n') +
+      return '[out:json][timeout:15];\n(\n' + selectors.join('\n') +
         '\n);\nout center ' + (MAX_CATEGORY_RESULTS + 1) + ';';
     }
 
@@ -491,40 +525,58 @@
       if (!coords) throw new Error('Kategori araması için geçerli cihaz konumu gerekli');
       const key = category[0] + ':' + coords.lat.toFixed(5) + ':' + coords.lng.toFixed(5);
       const cached = categoryCache.get(key);
-      if (cached && now() - cached.savedAt < CATEGORY_CACHE_TTL_MS) return cached.result;
+      const cacheTtl = cached && cached.result.places.length
+        ? CATEGORY_CACHE_TTL_MS
+        : EMPTY_CATEGORY_CACHE_TTL_MS;
+      if (cached && now() - cached.savedAt < cacheTtl) return cached.result;
 
       const config = activeConfig || await serviceConfig();
-      assertProviderAvailable('overpass');
-      const lastRequestAt = Number(storage.getItem(LAST_CATEGORY_REQUEST_KEY)) || 0;
-      const elapsed = Math.max(0, now() - lastRequestAt);
-      const delay = MIN_CATEGORY_REQUEST_INTERVAL_MS - elapsed;
-      if (delay > 0) await wait(delay);
-      storage.setItem(LAST_CATEGORY_REQUEST_KEY, String(now()));
+      const endpoints = config.overpassEndpoints && config.overpassEndpoints.length
+        ? config.overpassEndpoints
+        : [config.overpassEndpoint || OVERPASS_ENDPOINT];
+      const errors = [];
+      for (const endpoint of endpoints) {
+        const backoffKey = providerBackoffKey('overpass', endpoint);
+        try {
+          assertProviderAvailable('overpass', endpoint);
+          const lastRequestAt = Number(storage.getItem(LAST_CATEGORY_REQUEST_KEY)) || 0;
+          const elapsed = Math.max(0, now() - lastRequestAt);
+          const delay = MIN_CATEGORY_REQUEST_INTERVAL_MS - elapsed;
+          if (delay > 0) await wait(delay);
+          storage.setItem(LAST_CATEGORY_REQUEST_KEY, String(now()));
 
-      const response = await fetchProvider('overpass', config.overpassEndpoint, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
-        },
-        body: 'data=' + encodeURIComponent(createOverpassQuery(category, coords)),
-        referrerPolicy: 'strict-origin-when-cross-origin'
-      });
-      if (!response || !response.ok) {
-        const status = response ? response.status : 'network';
-        throw new Error('Yakındaki yer arama hizmeti yanıt vermedi (' + status + ')');
+          const result = await fetchProvider('overpass', endpoint, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+            },
+            body: 'data=' + encodeURIComponent(createOverpassQuery(category, coords)),
+            referrerPolicy: 'strict-origin-when-cross-origin'
+          }, CATEGORY_REQUEST_TIMEOUT_MS, async (response) => ({
+            response,
+            data: response && response.ok ? await response.json() : null
+          }));
+          const data = result.data;
+          if (data && data.remark) {
+            throw new Error('Overpass sorgusu tamamlanamadı: ' +
+              String(data.remark).slice(0, 160));
+          }
+          if (!data || !Array.isArray(data.elements)) {
+            throw new Error('Overpass hizmetinden geçersiz yanıt alındı');
+          }
+          const categoryResult = normalizeCategoryPlaces(data.elements, category[1]);
+          categoryCache.set(key, { savedAt: now(), result: categoryResult });
+          return categoryResult;
+        } catch (error) {
+          if ((Number(storage.getItem(backoffKey)) || 0) <= now()) {
+            backoffProvider('overpass', endpoint, 10000);
+          }
+          errors.push(error && error.message ? error.message : String(error));
+        }
       }
-      const data = await response.json();
-      if (data && data.remark) {
-        throw new Error('Yakındaki yer araması tamamlanamadı: ' +
-          String(data.remark).slice(0, 160));
-      }
-      if (!data || !Array.isArray(data.elements)) {
-        throw new Error('Yakındaki yer arama hizmetinden geçersiz yanıt alındı');
-      }
-      const result = normalizeCategoryPlaces(data.elements, category[1]);
-      categoryCache.set(key, { savedAt: now(), result });
-      return result;
+      throw new Error('Yakındaki yer araması tamamlanamadı. ' +
+        errors.join(' ') + ' Biraz sonra tekrar dene.');
     }
 
     return Object.freeze({
@@ -559,6 +611,9 @@
     MAX_CACHE_ENTRIES,
     MAX_CATEGORY_RESULTS,
     MAX_RESULTS,
+    CATEGORY_CACHE_TTL_MS,
+    CATEGORY_REQUEST_TIMEOUT_MS,
+    EMPTY_CATEGORY_CACHE_TTL_MS,
     MIN_CATEGORY_REQUEST_INTERVAL_MS,
     MIN_REQUEST_INTERVAL_MS,
     REQUEST_TIMEOUT_MS,
