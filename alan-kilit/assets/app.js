@@ -6,7 +6,7 @@
    ============================================================ */
 
 const STORAGE_KEY = 'neredeKapansin.v1';
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const REMOTE_VERSION_URL = 'https://raw.githubusercontent.com/Alaaddin-617/UzayOS/main/alan-kilit/version.json';
 const REMOTE_UPDATE_URL = 'https://alaaddin-617.github.io/UzayOS/';
 const PALETTE = ['#5eead4', '#a78bfa', '#fbbf24', '#fb7185', '#60a5fa', '#34d399', '#f472b6'];
@@ -3819,6 +3819,13 @@ function hideUpdateBanner() {
 }
 
 function applyUpdate() {
+  if (location.protocol === 'file:') {
+    const updateUrl = new URL(REMOTE_UPDATE_URL);
+    if (remoteUpdateAvailable) updateUrl.searchParams.set('update', remoteUpdateAvailable);
+    location.replace(updateUrl.toString());
+    return;
+  }
+
   if (!pendingUpdate && remoteUpdateAvailable) {
     const updateUrl = new URL(REMOTE_UPDATE_URL);
     updateUrl.searchParams.set('update', remoteUpdateAvailable);
@@ -3869,6 +3876,12 @@ async function checkLatestVersion(force = false) {
     const comparison = AreaReleaseNotes.compareVersions(APP_VERSION, manifest.version);
     if (comparison === null) return 'unavailable';
     if (comparison < 0) {
+      if (location.protocol === 'file:') {
+        const updateUrl = new URL(REMOTE_UPDATE_URL);
+        updateUrl.searchParams.set('update', manifest.version);
+        location.replace(updateUrl.toString());
+        return 'redirecting';
+      }
       showRemoteUpdate(manifest.version);
       return 'available';
     }
@@ -3881,6 +3894,16 @@ async function checkLatestVersion(force = false) {
     if (requestedVersion === APP_VERSION) showReleaseNotes(currentRelease || { version: APP_VERSION, changes: [] });
     return 'current';
   } catch {
+    if (location.protocol === 'file:') {
+      const banner = $('#updateBanner');
+      const text = $('#updateText');
+      const button = $('#updateBtn');
+      if (banner) banner.hidden = false;
+      if (text) text.textContent =
+        'Sürüm denetlenemedi. İnterneti kontrol et veya güncel web uygulamasını aç.';
+      if (button) button.textContent = 'Güncel uygulamayı aç';
+      renderUpdateChanges(null);
+    }
     return 'unavailable';
   }
 }
